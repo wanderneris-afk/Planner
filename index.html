@@ -57,6 +57,9 @@
   .confirm .action-label{font-family:var(--font-mono); font-size:0.7rem; text-transform:uppercase; letter-spacing:.08em; color:var(--accent); margin-bottom:6px;}
   .confirm .task-line{font-weight:600;}
   .confirm .meta{font-family:var(--font-mono); font-size:0.8rem; color:var(--muted); margin-top:2px;}
+  .confirm-fields{display:flex; gap:10px; margin-top:10px; flex-wrap:wrap;}
+  .confirm-fields label{font-family:var(--font-mono); font-size:0.72rem; color:var(--muted); display:flex; flex-direction:column; gap:4px; flex:1; min-width:130px;}
+  .confirm-fields input{padding:8px 10px; border:1px solid var(--line); border-radius:8px; font-size:0.9rem; background:#fff; font-family:var(--font-body);}
   .confirm .btns{display:flex; gap:10px; margin-top:12px;}
   button.primary, button.ghost{
     font-family:var(--font-display); font-weight:700; font-size:0.85rem;
@@ -166,6 +169,10 @@
       <div class="action-label" id="confirmAction">Adicionar tarefa</div>
       <div class="task-line" id="confirmText"></div>
       <div class="meta" id="confirmMeta"></div>
+      <div class="confirm-fields" id="confirmFields">
+        <label>Contexto<input id="cCtxInput" type="text" placeholder="Geral"></label>
+        <label>Data<input id="cDateInput" type="date"></label>
+      </div>
       <div class="btns">
         <button class="primary" id="confirmYes">Confirmar</button>
         <button class="ghost" id="confirmNo">Descartar</button>
@@ -178,7 +185,8 @@
   <details class="guide">
     <summary>Comandos de voz que o app entende</summary>
     <div class="guide-body">
-      <p><strong>Adicionar:</strong> fale a tarefa e inclua as palavras-chave <em>contexto</em> e <em>dia/data</em>.<br>
+      <p><strong>Fluxo guiado:</strong> fale só a tarefa e o app pergunta em voz alta “Qual o contexto?” e “Para qual data?” — responda falando. Diga <em>“pular”</em>, <em>“sem contexto”</em> ou <em>“sem data”</em> para deixar em branco.</p>
+      <p style="margin-top:8px"><strong>Adicionar de uma vez só</strong> (opcional): fale a tarefa já com as palavras-chave <em>contexto</em> e <em>dia/data</em>.<br>
       <code>Preparar dashboard de headcount contexto trabalho dia 24 de julho</code><br>
       <code>Comprar presente contexto pessoal amanhã</code></p>
       <p style="margin-top:8px"><strong>Editar</strong> (comece com “editar”, “alterar” ou “mudar” + parte do nome da tarefa):<br>
@@ -193,15 +201,11 @@
 
   <!-- Controles -->
   <div class="controls">
-    <label>Semanas no PDF
-      <select id="numWeeks">
-        <option value="2">2</option><option value="4" selected>4</option>
-        <option value="6">6</option><option value="8">8</option><option value="12">12</option>
-      </select>
+    <button class="ghost" id="prevWeek">‹ Anterior</button>
+    <label>Semana de
+      <input type="date" id="weekDate">
     </label>
-    <label>Início (semana de)
-      <input type="date" id="startDate">
-    </label>
+    <button class="ghost" id="nextWeek">Próxima ›</button>
     <span class="spacer"></span>
     <button id="printBtn">Gerar PDF (imprimir)</button>
   </div>
@@ -255,7 +259,8 @@ const WEEKDAYS = {domingo:0,segunda:1,"terça":2,terca:2,quarta:3,quinta:4,sexta
 
 function toISO(d){ return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
 function fromISO(s){ const [y,m,dd]=s.split("-").map(Number); return new Date(y,m-1,dd); }
-function mondayOf(d){ const x=new Date(d); const day=(x.getDay()+6)%7; x.setDate(x.getDate()-day); x.setHours(0,0,0,0); return x; }
+function sundayOf(d){ const x=new Date(d); x.setDate(x.getDate()-x.getDay()); x.setHours(0,0,0,0); return x; }
+function weekOfYear(sun){ const jan1=new Date(sun.getFullYear(),0,1); const first=sundayOf(jan1); return Math.floor((sun-first)/(7*24*3600*1000))+1; }
 function fmtShort(d){ return String(d.getDate()).padStart(2,"0")+"/"+String(d.getMonth()+1).padStart(2,"0"); }
 function fmtLong(iso){ if(!iso) return "sem data"; const d=fromISO(iso); return d.toLocaleDateString("pt-BR",{weekday:"short",day:"2-digit",month:"short"}); }
 
@@ -418,23 +423,75 @@ if(!SR){
       else interim += ev.results[i][0].transcript;
     }
     const shown = (final||interim).trim();
-    if(shown){ transcriptEl.textContent = shown; transcriptEl.classList.remove("empty"); setChips(parseCommand(shown)); }
+    if(shown){ transcriptEl.textContent = shown; transcriptEl.classList.remove("empty"); if(!flowMode) setChips(parseCommand(shown)); }
     if(final.trim()) handleSpeech(final.trim());
   };
   micBtn.addEventListener("click", ()=>{ if(listening){ recog.stop(); } else { hideConfirm(); try{recog.start();}catch(e){} } });
 }
 
-/* ================= Fluxo de confirmação ================= */
+/* ================= Fluxo de confirmação (guiado por voz) ================= */
 const confirmCard = document.getElementById("confirmCard");
+const cCtxInput = document.getElementById("cCtxInput");
+const cDateInput = document.getElementById("cDateInput");
+let draft = null;      // tarefa em construção {text, context, dateISO, ctxAsked, dateAsked}
+let flowMode = null;   // null | "awaitContext" | "awaitDate"
+
+function speak(msg, then){
+  stateLabel.textContent = msg;
+  if(window.speechSynthesis){
+    try{
+      speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(msg);
+      u.lang = "pt-BR"; u.rate = 1.05;
+      u.onend = ()=>{ if(then) then(); };
+      u.onerror = ()=>{ if(then) then(); };
+      speechSynthesis.speak(u);
+      return;
+    }catch(e){}
+  }
+  if(then) setTimeout(then, 400);
+}
+function listenAgain(){
+  if(!recog) return;
+  setTimeout(()=>{ try{ recog.start(); }catch(e){} }, 150);
+}
+function isSkip(s){ return /\b(pular|pula|sem contexto|sem data|nenhum|nenhuma|nao sei)\b/.test(normalize(s)); }
+function chipsFromDraft(){ setChips({action:"add", text:draft.text, context:draft.context, dateISO:draft.dateISO}); }
 
 function handleSpeech(text){
+  /* --- Etapa: respondendo "Qual o contexto?" --- */
+  if(flowMode==="awaitContext" && draft){
+    if(!isSkip(text)){
+      let c = text.replace(/^(o\s+)?contexto\s+(e\s+|é\s+|de\s+)?/i,"").replace(/[.!?]+$/,"").trim();
+      const dh = parseDate(c);
+      if(dh && !draft.dateISO){ draft.dateISO = dh.iso; draft.dateAsked = true; c = c.replace(dh.matchedText,"").replace(/\b(dia|data|para)\s*$/i,"").trim(); }
+      if(c) draft.context = c;
+    }
+    flowMode = null; chipsFromDraft(); nextStep();
+    return;
+  }
+  /* --- Etapa: respondendo "Para qual data?" --- */
+  if(flowMode==="awaitDate" && draft){
+    if(!isSkip(text)){
+      const dh = parseDate(text);
+      if(!dh){
+        speak("Não entendi a data. Diga, por exemplo: dia 22 de julho, amanhã, ou sem data.", listenAgain);
+        return;
+      }
+      draft.dateISO = dh.iso;
+    }
+    flowMode = null; chipsFromDraft(); nextStep();
+    return;
+  }
+
+  /* --- Comando inicial --- */
   const p = parseCommand(text);
   setChips(p);
 
   if(p.action==="add"){
     if(!p.text){ showError("Não entendi a tarefa. Tente de novo."); return; }
-    pending = {type:"add", data:p};
-    showConfirm("Adicionar tarefa", p.text, metaLine(p.context, p.dateISO));
+    draft = {text:p.text, context:p.context||null, dateISO:p.dateISO||null, ctxAsked:!!p.context, dateAsked:!!p.dateISO};
+    nextStep();
   }
   if(p.action==="delete"){
     const t = findTask(p.text);
@@ -456,20 +513,53 @@ function handleSpeech(text){
     showConfirm("Editar tarefa", t.text, parts.join(" · "));
   }
 }
+
+/* Decide o próximo passo do fluxo guiado */
+function nextStep(){
+  if(!draft) return;
+  if(!draft.context && !draft.ctxAsked){
+    draft.ctxAsked = true; flowMode = "awaitContext";
+    speak("Qual o contexto?", listenAgain);
+    return;
+  }
+  if(!draft.dateISO && !draft.dateAsked){
+    draft.dateAsked = true; flowMode = "awaitDate";
+    speak("Para qual data?", listenAgain);
+    return;
+  }
+  // Tudo coletado → confirmação com campos ajustáveis
+  pending = {type:"add"};
+  document.getElementById("confirmAction").textContent = "Adicionar tarefa";
+  document.getElementById("confirmText").textContent = draft.text;
+  document.getElementById("confirmMeta").textContent = "Ajuste os campos abaixo se precisar:";
+  cCtxInput.value = draft.context || "";
+  cDateInput.value = draft.dateISO || "";
+  document.getElementById("confirmFields").style.display = "flex";
+  confirmCard.classList.add("show");
+  stateLabel.textContent = "Confirme a tarefa abaixo";
+}
+
 function metaLine(ctx, iso){ return (ctx? "contexto: "+ctx : "sem contexto") + " · " + fmtLong(iso); }
 function showConfirm(action, text, meta){
   document.getElementById("confirmAction").textContent = action;
   document.getElementById("confirmText").textContent = text;
   document.getElementById("confirmMeta").textContent = meta;
+  document.getElementById("confirmFields").style.display = "none";
   confirmCard.classList.add("show");
 }
-function hideConfirm(){ confirmCard.classList.remove("show"); pending=null; }
+function hideConfirm(){
+  confirmCard.classList.remove("show");
+  pending=null; draft=null; flowMode=null;
+  if(window.speechSynthesis){ try{ speechSynthesis.cancel(); }catch(e){} }
+  stateLabel.textContent = "Toque no microfone e fale";
+}
 function showError(msg){ errorNote.textContent=msg; errorNote.classList.add("show"); }
 
 document.getElementById("confirmYes").addEventListener("click", ()=>{
   if(!pending) return;
   if(pending.type==="add"){
-    tasks.push({id:Date.now().toString(36), text:pending.data.text, context:pending.data.context||"Geral", date:pending.data.dateISO||null});
+    if(!draft) return;
+    tasks.push({id:Date.now().toString(36), text:draft.text, context:(cCtxInput.value.trim()||"Geral"), date:(cDateInput.value||null)});
     toast("Tarefa adicionada");
   }else if(pending.type==="delete"){
     tasks = tasks.filter(t=>t.id!==pending.task.id);
@@ -491,64 +581,71 @@ function ctxColor(name){
   return CTX_COLORS[names.indexOf(name) % CTX_COLORS.length];
 }
 
-const numWeeksSel = document.getElementById("numWeeks");
-const startDateInp = document.getElementById("startDate");
-startDateInp.value = toISO(mondayOf(new Date()));
+const weekDateInp = document.getElementById("weekDate");
+weekDateInp.value = toISO(sundayOf(new Date()));
+const DAY_NAMES = ["Domingo","Segunda","Terça","Quarta","Quinta","Sexta","Sábado"];
+
+function shiftWeek(days){
+  const d = fromISO(weekDateInp.value || toISO(new Date()));
+  d.setDate(d.getDate()+days);
+  weekDateInp.value = toISO(sundayOf(d));
+  render();
+}
 
 function render(){
   const host = document.getElementById("gridHost");
-  const n = +numWeeksSel.value;
-  const start = mondayOf(fromISO(startDateInp.value || toISO(new Date())));
-  const end = new Date(start); end.setDate(end.getDate()+n*7-1);
+  const start = sundayOf(fromISO(weekDateInp.value || toISO(new Date())));
+  const end = new Date(start); end.setDate(end.getDate()+6);
+  const todayISO = toISO(new Date());
   document.getElementById("gridSub").textContent =
-    fmtShort(start)+" – "+fmtShort(end)+"/"+end.getFullYear()+" · "+tasks.length+" tarefa(s)";
+    "Semana "+weekOfYear(start)+" do ano · "+fmtShort(start)+" – "+fmtShort(end)+"/"+end.getFullYear()+" · "+tasks.length+" tarefa(s) no total";
 
   if(tasks.length===0){
-    host.innerHTML = '<div class="empty-grid">Nenhuma tarefa ainda. Toque no microfone e fale a primeira — ela aparece aqui organizada por contexto e semana.</div>';
+    host.innerHTML = '<div class="empty-grid">Nenhuma tarefa ainda. Toque no microfone e fale a primeira — ela aparece aqui organizada por contexto e dia da semana.</div>';
     return;
   }
 
   const contexts = [...new Set(tasks.map(t=>t.context||"Geral"))].sort((a,b)=>a.localeCompare(b,"pt-BR"));
 
-  // função: índice de semana de uma tarefa (-1 = fora do período; n = sem data)
-  function weekIdx(t){
-    if(!t.date) return n; // coluna "Sem data"
-    const wm = mondayOf(fromISO(t.date));
-    const diff = Math.round((wm - start)/(7*24*3600*1000));
-    return (diff>=0 && diff<n) ? diff : -1;
+  // índice de coluna de uma tarefa: 0–6 = dia da semana; 7 = sem data; -1 = fora desta semana
+  function dayIdx(t){
+    if(!t.date) return 7;
+    const d = fromISO(t.date);
+    const diff = Math.round((d - start)/(24*3600*1000));
+    return (diff>=0 && diff<7) ? diff : -1;
   }
-  const outOfRange = tasks.filter(t=>weekIdx(t)===-1).length;
+  const outOfWeek = tasks.filter(t=>dayIdx(t)===-1).length;
+  const hasNoDate = tasks.some(t=>!t.date);
 
   let html = '<table class="week-grid"><thead><tr><th class="ctx-col">Contexto</th>';
-  for(let w=0; w<n; w++){
-    const a = new Date(start); a.setDate(a.getDate()+w*7);
-    const b = new Date(a); b.setDate(b.getDate()+6);
-    html += '<th>Semana '+(w+1)+'<span class="range">'+fmtShort(a)+' – '+fmtShort(b)+'</span></th>';
+  for(let d=0; d<7; d++){
+    const day = new Date(start); day.setDate(day.getDate()+d);
+    const isToday = toISO(day)===todayISO;
+    html += '<th'+(isToday?' style="background:var(--accent-soft)"':'')+'>'+DAY_NAMES[d]+
+            '<span class="range">'+fmtShort(day)+(isToday?' · hoje':'')+'</span></th>';
   }
-  const hasNoDate = tasks.some(t=>!t.date);
   if(hasNoDate) html += '<th>Sem data</th>';
   html += '</tr></thead><tbody>';
 
   contexts.forEach(ctx=>{
     const color = ctxColor(ctx);
     html += '<tr><th class="ctx-col"><span class="ctx-tag" style="background:'+color+'">'+esc(ctx)+'</span></th>';
-    const cols = hasNoDate ? n+1 : n;
-    for(let w=0; w<cols; w++){
+    const cols = hasNoDate ? 8 : 7;
+    for(let d=0; d<cols; d++){
       const cell = tasks
-        .filter(t=>(t.context||"Geral")===ctx && weekIdx(t)===w)
+        .filter(t=>(t.context||"Geral")===ctx && dayIdx(t)===d)
         .sort((a,b)=>(a.date||"9999").localeCompare(b.date||"9999"));
       html += '<td>';
       cell.forEach(t=>{
-        html += '<div class="task-item" data-id="'+t.id+'" style="border-left-color:'+color+'">'+
-                esc(t.text)+'<span class="t-date">'+fmtLong(t.date)+'</span></div>';
+        html += '<div class="task-item" data-id="'+t.id+'" style="border-left-color:'+color+'">'+esc(t.text)+'</div>';
       });
       html += '</td>';
     }
     html += '</tr>';
   });
   html += '</tbody></table>';
-  if(outOfRange>0){
-    html += '<p style="font-family:var(--font-mono);font-size:.72rem;color:var(--muted);margin-top:10px">'+outOfRange+' tarefa(s) fora do período exibido (ajuste as semanas ou a data de início).</p>';
+  if(outOfWeek>0){
+    html += '<p style="font-family:var(--font-mono);font-size:.72rem;color:var(--muted);margin-top:10px">'+outOfWeek+' tarefa(s) em outras semanas — use ‹ Anterior / Próxima › para vê-las.</p>';
   }
   host.innerHTML = html;
 
@@ -558,8 +655,9 @@ function render(){
 }
 function esc(s){ return String(s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c])); }
 
-numWeeksSel.addEventListener("change", render);
-startDateInp.addEventListener("change", render);
+weekDateInp.addEventListener("change", ()=>{ weekDateInp.value = toISO(sundayOf(fromISO(weekDateInp.value))); render(); });
+document.getElementById("prevWeek").addEventListener("click", ()=>shiftWeek(-7));
+document.getElementById("nextWeek").addEventListener("click", ()=>shiftWeek(7));
 document.getElementById("printBtn").addEventListener("click", ()=>window.print());
 
 /* ================= Edição manual ================= */
