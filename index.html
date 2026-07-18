@@ -104,6 +104,19 @@
   th.ctx-col{width:120px; font-family:var(--font-display); font-weight:700; font-size:0.85rem; background:var(--bg); text-align:left;}
   th.ctx-col .ctx-tag{display:inline-block; padding:3px 9px; border-radius:6px; font-size:0.8rem;}
   .task-item{font-size:0.8rem; padding:5px 7px; border-radius:6px; margin-bottom:5px; border-left:3px solid transparent; background:var(--bg); cursor:pointer;}
+  .task-item.done{opacity:.55; background:#EAF5EE;}
+  .task-item.done::before{content:"✓ "; color:var(--accent); font-weight:700;}
+
+  /* Lista detalhada */
+  table.list-table{border-collapse:collapse; width:100%; min-width:560px;}
+  table.list-table th, table.list-table td{border:1px solid var(--line); padding:8px; font-size:0.82rem; vertical-align:top; text-align:left;}
+  table.list-table thead th{font-family:var(--font-mono); font-size:0.7rem; font-weight:600; text-transform:uppercase; letter-spacing:.05em; background:var(--bg);}
+  table.list-table tbody tr{cursor:pointer;}
+  table.list-table tbody tr:hover td{background:var(--bg);}
+  table.list-table td.lt-date{font-family:var(--font-mono); font-size:0.75rem; white-space:nowrap;}
+  tr.done-row td{color:var(--muted); background:#F4FAF6;}
+  tr.done-row td.lt-task::before{content:"✓ "; color:var(--accent); font-weight:700;}
+  .export-row{display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px;}
   .task-item:hover{outline:2px solid var(--line);}
   .task-item .t-date{font-family:var(--font-mono); font-size:0.66rem; color:var(--muted); display:block;}
   .empty-grid{padding:32px; text-align:center; color:var(--muted); font-size:0.9rem;}
@@ -127,11 +140,16 @@
     @page{size:A4 landscape; margin:10mm;}
     body{background:#fff;}
     .wrap{max-width:none; padding:0;}
-    header.app, .capture, details.guide, .controls, .toast{display:none !important;}
+    header.app, .capture, details.guide, .controls, .toast, .export-row{display:none !important;}
     .grid-card{border:none; padding:0; overflow:visible;}
     table.week-grid{min-width:0; width:100%; font-size:9pt;}
     table.week-grid th, table.week-grid td{border:0.5pt solid #999; padding:4pt;}
     .task-item{background:#fff; border:0.5pt solid #ccc; page-break-inside:avoid;}
+    .task-item.done{background:#f2f2f2;}
+    table.list-table{min-width:0; width:100%; font-size:9pt; margin-top:8pt;}
+    table.list-table th, table.list-table td{border:0.5pt solid #999; padding:4pt;}
+    table.list-table tbody tr{page-break-inside:avoid;}
+    #listCard{margin-top:16pt;}
     .task-item:hover{outline:none;}
   }
 </style>
@@ -163,6 +181,7 @@
       <span class="chip" id="chipTask">tarefa</span>
       <span class="chip" id="chipCtx">contexto</span>
       <span class="chip" id="chipDate">data</span>
+      <span class="chip" id="chipDet">detalhe</span>
       <span class="chip" id="chipAction">ação: adicionar</span>
     </div>
     <div class="confirm" id="confirmCard">
@@ -172,6 +191,7 @@
       <div class="confirm-fields" id="confirmFields">
         <label>Contexto<input id="cCtxInput" type="text" placeholder="Geral"></label>
         <label>Data<input id="cDateInput" type="date"></label>
+        <label style="flex-basis:100%">Detalhamento<input id="cDetInput" type="text" placeholder="Opcional"></label>
       </div>
       <div class="btns">
         <button class="primary" id="confirmYes">Confirmar</button>
@@ -185,7 +205,10 @@
   <details class="guide">
     <summary>Comandos de voz que o app entende</summary>
     <div class="guide-body">
-      <p><strong>Fluxo guiado:</strong> fale só a tarefa e o app pergunta em voz alta “Qual o contexto?” e “Para qual data?” — responda falando. Diga <em>“pular”</em>, <em>“sem contexto”</em> ou <em>“sem data”</em> para deixar em branco.</p>
+      <p><strong>Fluxo guiado:</strong> fale só a tarefa e o app pergunta em voz alta “Qual o contexto?”, “Para qual data?” e “Qual o detalhamento?” — responda falando. Diga <em>“pular”</em> para deixar qualquer etapa em branco.</p>
+      <p style="margin-top:8px"><strong>Concluir</strong> (comece com “concluir” ou “finalizar”):<br>
+      <code>Concluir dashboard de headcount</code><br>
+      Ou toque na tarefa e use o botão <em>Concluir ✓</em>. Concluídas ficam claras com ✓ verde.</p>
       <p style="margin-top:8px"><strong>Adicionar de uma vez só</strong> (opcional): fale a tarefa já com as palavras-chave <em>contexto</em> e <em>dia/data</em>.<br>
       <code>Preparar dashboard de headcount contexto trabalho dia 24 de julho</code><br>
       <code>Comprar presente contexto pessoal amanhã</code></p>
@@ -216,6 +239,17 @@
     <div class="grid-sub" id="gridSub"></div>
     <div id="gridHost"></div>
   </section>
+
+  <!-- Lista detalhada -->
+  <section class="grid-card" id="listCard" style="margin-top:24px">
+    <div class="grid-title">Tarefas da semana em detalhe</div>
+    <div class="grid-sub" id="listSub"></div>
+    <div class="export-row">
+      <button class="ghost" id="exportCsvBtn">⬇ Exportar CSV (Planilhas Google)</button>
+      <button class="ghost" id="copyTsvBtn">⧉ Copiar para colar na planilha</button>
+    </div>
+    <div id="listHost" style="overflow-x:auto"></div>
+  </section>
 </div>
 
 <!-- Modal edição manual -->
@@ -224,8 +258,10 @@
   <div class="field"><label for="fText">Tarefa</label><input id="fText" type="text"></div>
   <div class="field"><label for="fCtx">Contexto</label><input id="fCtx" type="text"></div>
   <div class="field"><label for="fDate">Data</label><input id="fDate" type="date"></div>
+  <div class="field"><label for="fDet">Detalhamento</label><input id="fDet" type="text"></div>
   <div class="btns">
     <button class="primary" id="saveEdit">Salvar</button>
+    <button class="ghost" id="doneEdit" style="border-color:var(--accent); color:var(--accent)">Concluir ✓</button>
     <button class="ghost" id="cancelEdit">Cancelar</button>
     <button class="danger" id="deleteEdit">Excluir</button>
   </div>
@@ -330,9 +366,18 @@ function parseCommand(raw){
   let action = "add";
   if(/^(editar|alterar|mudar)\b/.test(lower)) action = "edit";
   else if(/^(excluir|apagar|remover|deletar)\b/.test(lower)) action = "delete";
+  else if(/^(concluir|concluida|finalizar|completar)\b/.test(lower)) action = "done";
 
   // remove o verbo de comando + "tarefa" opcional
-  let body = text.replace(/^(editar|alterar|mudar|excluir|apagar|remover|deletar)\s+(a\s+)?(tarefa\s+)?/i,"");
+  let body = text.replace(/^(editar|alterar|mudar|excluir|apagar|remover|deletar|concluir|concluída|concluida|finalizar|completar)\s+(a\s+)?(tarefa\s+)?/i,"");
+
+  // detalhamento (tudo após a palavra-chave)
+  let detail = null;
+  const detM = body.match(/detalh(?:amento|e)\s+(?:e\s+|é\s+|de\s+)?(.+)$/i);
+  if(detM){
+    detail = detM[1].trim();
+    body = body.replace(detM[0], " ");
+  }
 
   // data
   const dateHit = parseDate(body);
@@ -352,7 +397,7 @@ function parseCommand(raw){
   // limpa resíduos
   body = body.replace(/\b(no|na|em|para|pro|pra)\s*$/i,"").replace(/,\s*/g," ").replace(/\s{2,}/g," ").trim();
 
-  return {action, text: body, context, dateISO};
+  return {action, text: body, context, dateISO, detail};
 }
 
 /* Busca fuzzy: melhor tarefa cujo texto contenha o trecho falado (ou vice-versa) */
@@ -386,13 +431,15 @@ let recog = null, listening = false;
 
 function setChips(parsed){
   const cT=document.getElementById("chipTask"), cC=document.getElementById("chipCtx"),
-        cD=document.getElementById("chipDate"), cA=document.getElementById("chipAction");
+        cD=document.getElementById("chipDate"), cA=document.getElementById("chipAction"),
+        cX=document.getElementById("chipDet");
   const set=(el, filled, label)=>{ el.className="chip"+(filled?" filled":""); el.textContent=label; };
-  if(!parsed){ set(cT,false,"tarefa"); set(cC,false,"contexto"); set(cD,false,"data"); set(cA,false,"ação: adicionar"); return; }
+  if(!parsed){ set(cT,false,"tarefa"); set(cC,false,"contexto"); set(cD,false,"data"); set(cX,false,"detalhe"); set(cA,false,"ação: adicionar"); return; }
   set(cT, !!parsed.text, parsed.text ? "tarefa: "+parsed.text.slice(0,30) : "tarefa");
   set(cC, !!parsed.context, parsed.context ? "contexto: "+parsed.context : "contexto");
   set(cD, !!parsed.dateISO, parsed.dateISO ? "data: "+fmtLong(parsed.dateISO) : "data");
-  const names={add:"adicionar", edit:"editar", delete:"excluir"};
+  set(cX, !!parsed.detail, parsed.detail ? "detalhe: "+parsed.detail.slice(0,25) : "detalhe");
+  const names={add:"adicionar", edit:"editar", delete:"excluir", done:"concluir"};
   set(cA, parsed.action!=="add", "ação: "+names[parsed.action]);
 }
 
@@ -433,6 +480,7 @@ if(!SR){
 const confirmCard = document.getElementById("confirmCard");
 const cCtxInput = document.getElementById("cCtxInput");
 const cDateInput = document.getElementById("cDateInput");
+const cDetInput = document.getElementById("cDetInput");
 let draft = null;      // tarefa em construção {text, context, dateISO, ctxAsked, dateAsked}
 let flowMode = null;   // null | "awaitContext" | "awaitDate"
 
@@ -455,8 +503,8 @@ function listenAgain(){
   if(!recog) return;
   setTimeout(()=>{ try{ recog.start(); }catch(e){} }, 150);
 }
-function isSkip(s){ return /\b(pular|pula|sem contexto|sem data|nenhum|nenhuma|nao sei)\b/.test(normalize(s)); }
-function chipsFromDraft(){ setChips({action:"add", text:draft.text, context:draft.context, dateISO:draft.dateISO}); }
+function isSkip(s){ return /\b(pular|pula|sem contexto|sem data|sem detalhamento|sem detalhe|nenhum|nenhuma|nao sei)\b/.test(normalize(s)); }
+function chipsFromDraft(){ setChips({action:"add", text:draft.text, context:draft.context, dateISO:draft.dateISO, detail:draft.detail}); }
 
 function handleSpeech(text){
   /* --- Etapa: respondendo "Qual o contexto?" --- */
@@ -483,6 +531,15 @@ function handleSpeech(text){
     flowMode = null; chipsFromDraft(); nextStep();
     return;
   }
+  /* --- Etapa: respondendo "Qual o detalhamento?" --- */
+  if(flowMode==="awaitDetail" && draft){
+    if(!isSkip(text)){
+      const d = text.replace(/^(o\s+)?detalh(?:amento|e)\s+(e\s+|é\s+|de\s+)?/i,"").replace(/[.!?]+$/,"").trim();
+      if(d) draft.detail = d;
+    }
+    flowMode = null; chipsFromDraft(); nextStep();
+    return;
+  }
 
   /* --- Comando inicial --- */
   const p = parseCommand(text);
@@ -490,7 +547,8 @@ function handleSpeech(text){
 
   if(p.action==="add"){
     if(!p.text){ showError("Não entendi a tarefa. Tente de novo."); return; }
-    draft = {text:p.text, context:p.context||null, dateISO:p.dateISO||null, ctxAsked:!!p.context, dateAsked:!!p.dateISO};
+    draft = {text:p.text, context:p.context||null, dateISO:p.dateISO||null, detail:p.detail||null,
+             ctxAsked:!!p.context, dateAsked:!!p.dateISO, detAsked:!!p.detail};
     nextStep();
   }
   if(p.action==="delete"){
@@ -499,17 +557,25 @@ function handleSpeech(text){
     pending = {type:"delete", task:t};
     showConfirm("Excluir tarefa", t.text, metaLine(t.context, t.date));
   }
+  if(p.action==="done"){
+    const t = findTask(p.text);
+    if(!t){ showError("Não encontrei nenhuma tarefa parecida com \""+p.text+"\"."); return; }
+    pending = {type:"done", task:t};
+    showConfirm("Concluir tarefa", t.text, metaLine(t.context, t.date));
+  }
   if(p.action==="edit"){
     const t = findTask(p.text);
     if(!t){ showError("Não encontrei nenhuma tarefa parecida com \""+p.text+"\"."); return; }
     const changes = {};
     if(p.dateISO) changes.date = p.dateISO;
     if(p.context) changes.context = p.context;
-    if(!p.dateISO && !p.context){ showError("Entendi que é edição, mas não ouvi novo contexto nem nova data. Ex.: \"editar "+t.text+" para dia 30\"."); return; }
+    if(p.detail) changes.detail = p.detail;
+    if(!p.dateISO && !p.context && !p.detail){ showError("Entendi que é edição, mas não ouvi novo contexto, data ou detalhamento. Ex.: \"editar "+t.text+" para dia 30\"."); return; }
     pending = {type:"edit", task:t, changes};
     const parts=[];
     if(changes.context) parts.push("novo contexto: "+changes.context);
     if(changes.date) parts.push("nova data: "+fmtLong(changes.date));
+    if(changes.detail) parts.push("detalhe: "+changes.detail);
     showConfirm("Editar tarefa", t.text, parts.join(" · "));
   }
 }
@@ -527,6 +593,11 @@ function nextStep(){
     speak("Para qual data?", listenAgain);
     return;
   }
+  if(!draft.detail && !draft.detAsked){
+    draft.detAsked = true; flowMode = "awaitDetail";
+    speak("Qual o detalhamento?", listenAgain);
+    return;
+  }
   // Tudo coletado → confirmação com campos ajustáveis
   pending = {type:"add"};
   document.getElementById("confirmAction").textContent = "Adicionar tarefa";
@@ -534,6 +605,7 @@ function nextStep(){
   document.getElementById("confirmMeta").textContent = "Ajuste os campos abaixo se precisar:";
   cCtxInput.value = draft.context || "";
   cDateInput.value = draft.dateISO || "";
+  cDetInput.value = draft.detail || "";
   document.getElementById("confirmFields").style.display = "flex";
   confirmCard.classList.add("show");
   stateLabel.textContent = "Confirme a tarefa abaixo";
@@ -559,8 +631,12 @@ document.getElementById("confirmYes").addEventListener("click", ()=>{
   if(!pending) return;
   if(pending.type==="add"){
     if(!draft) return;
-    tasks.push({id:Date.now().toString(36), text:draft.text, context:(cCtxInput.value.trim()||"Geral"), date:(cDateInput.value||null)});
+    tasks.push({id:Date.now().toString(36), text:draft.text, context:(cCtxInput.value.trim()||"Geral"), date:(cDateInput.value||null), detail:(cDetInput.value.trim()||null), done:false});
     toast("Tarefa adicionada");
+  }else if(pending.type==="done"){
+    const t = tasks.find(x=>x.id===pending.task.id);
+    if(t) t.done = true;
+    toast("Tarefa concluída ✓");
   }else if(pending.type==="delete"){
     tasks = tasks.filter(t=>t.id!==pending.task.id);
     toast("Tarefa excluída");
@@ -602,6 +678,8 @@ function render(){
 
   if(tasks.length===0){
     host.innerHTML = '<div class="empty-grid">Nenhuma tarefa ainda. Toque no microfone e fale a primeira — ela aparece aqui organizada por contexto e dia da semana.</div>';
+    document.getElementById("listSub").textContent = "0 tarefa(s) nesta semana";
+    document.getElementById("listHost").innerHTML = '<div class="empty-grid">Nenhuma tarefa nesta semana.</div>';
     return;
   }
 
@@ -637,7 +715,7 @@ function render(){
         .sort((a,b)=>(a.date||"9999").localeCompare(b.date||"9999"));
       html += '<td>';
       cell.forEach(t=>{
-        html += '<div class="task-item" data-id="'+t.id+'" style="border-left-color:'+color+'">'+esc(t.text)+'</div>';
+        html += '<div class="task-item'+(t.done?' done':'')+'" data-id="'+t.id+'" style="border-left-color:'+color+'">'+esc(t.text)+'</div>';
       });
       html += '</td>';
     }
@@ -652,6 +730,45 @@ function render(){
   host.querySelectorAll(".task-item").forEach(el=>{
     el.addEventListener("click", ()=>openEdit(el.dataset.id));
   });
+
+  renderList(start, dayIdx);
+}
+
+/* Lista detalhada das tarefas da semana exibida */
+let exportTasks = [];      // tarefas visíveis na lista, para exportação
+let exportLabel = "semana";
+function renderList(start, dayIdx){
+  const listHost = document.getElementById("listHost");
+  const weekTasks = tasks
+    .filter(t=>dayIdx(t)>=0)
+    .sort((a,b)=>{
+      const d=(a.date||"9999").localeCompare(b.date||"9999");
+      return d!==0 ? d : (a.context||"Geral").localeCompare(b.context||"Geral","pt-BR");
+    });
+  exportTasks = weekTasks;
+  exportLabel = "semana-"+weekOfYear(start)+"-"+start.getFullYear();
+  const doneCount = weekTasks.filter(t=>t.done).length;
+  document.getElementById("listSub").textContent =
+    weekTasks.length+" tarefa(s) nesta semana · "+doneCount+" concluída(s)";
+
+  if(weekTasks.length===0){
+    listHost.innerHTML = '<div class="empty-grid">Nenhuma tarefa nesta semana.</div>';
+    return;
+  }
+  let lh = '<table class="list-table"><thead><tr><th>Data</th><th>Contexto</th><th>Tarefa</th><th>Detalhamento</th></tr></thead><tbody>';
+  weekTasks.forEach(t=>{
+    const color = ctxColor(t.context||"Geral");
+    lh += '<tr class="'+(t.done?'done-row':'')+'" data-id="'+t.id+'">'+
+          '<td class="lt-date">'+fmtLong(t.date)+'</td>'+
+          '<td><span class="ctx-tag" style="background:'+color+'; padding:2px 8px; border-radius:6px">'+esc(t.context||"Geral")+'</span></td>'+
+          '<td class="lt-task">'+esc(t.text)+'</td>'+
+          '<td>'+esc(t.detail||"—")+'</td></tr>';
+  });
+  lh += '</tbody></table>';
+  listHost.innerHTML = lh;
+  listHost.querySelectorAll("tr[data-id]").forEach(el=>{
+    el.addEventListener("click", ()=>openEdit(el.dataset.id));
+  });
 }
 function esc(s){ return String(s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c])); }
 
@@ -659,6 +776,45 @@ weekDateInp.addEventListener("change", ()=>{ weekDateInp.value = toISO(sundayOf(
 document.getElementById("prevWeek").addEventListener("click", ()=>shiftWeek(-7));
 document.getElementById("nextWeek").addEventListener("click", ()=>shiftWeek(7));
 document.getElementById("printBtn").addEventListener("click", ()=>window.print());
+
+/* ================= Exportação para planilha ================= */
+function fmtBR(iso){ if(!iso) return ""; const [y,m,d]=iso.split("-"); return d+"/"+m+"/"+y; }
+function exportRows(){
+  return exportTasks.map(t=>[
+    fmtBR(t.date), t.context||"Geral", t.text, t.detail||"", t.done ? "Concluída" : "Pendente"
+  ]);
+}
+const EXPORT_HEADER = ["Data","Contexto","Tarefa","Detalhamento","Status"];
+
+document.getElementById("exportCsvBtn").addEventListener("click", ()=>{
+  if(exportTasks.length===0){ toast("Nenhuma tarefa nesta semana para exportar"); return; }
+  const csvEsc = v=>'"'+String(v).replace(/"/g,'""')+'"';
+  const lines = [EXPORT_HEADER, ...exportRows()].map(r=>r.map(csvEsc).join(","));
+  const blob = new Blob(["\uFEFF"+lines.join("\r\n")], {type:"text/csv;charset=utf-8"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "tarefas-"+exportLabel+".csv";
+  document.body.appendChild(a); a.click();
+  setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+  toast("CSV baixado — abra com o Planilhas Google");
+});
+
+document.getElementById("copyTsvBtn").addEventListener("click", async ()=>{
+  if(exportTasks.length===0){ toast("Nenhuma tarefa nesta semana para copiar"); return; }
+  const tsv = [EXPORT_HEADER, ...exportRows()]
+    .map(r=>r.map(v=>String(v).replace(/[\t\r\n]+/g," ")).join("\t")).join("\n");
+  try{
+    await navigator.clipboard.writeText(tsv);
+    toast("Copiado — cole na planilha (célula A1)");
+  }catch(e){
+    // fallback para navegadores sem clipboard API
+    const ta = document.createElement("textarea");
+    ta.value = tsv; document.body.appendChild(ta); ta.select();
+    try{ document.execCommand("copy"); toast("Copiado — cole na planilha (célula A1)"); }
+    catch(err){ toast("Não foi possível copiar neste navegador"); }
+    ta.remove();
+  }
+});
 
 /* ================= Edição manual ================= */
 const dlg = document.getElementById("editDialog");
@@ -668,6 +824,8 @@ function openEdit(id){
   document.getElementById("fText").value = t.text;
   document.getElementById("fCtx").value = t.context||"";
   document.getElementById("fDate").value = t.date||"";
+  document.getElementById("fDet").value = t.detail||"";
+  document.getElementById("doneEdit").textContent = t.done ? "Reabrir ↺" : "Concluir ✓";
   dlg.showModal();
 }
 document.getElementById("saveEdit").addEventListener("click", ()=>{
@@ -675,7 +833,13 @@ document.getElementById("saveEdit").addEventListener("click", ()=>{
   t.text = document.getElementById("fText").value.trim() || t.text;
   t.context = document.getElementById("fCtx").value.trim() || "Geral";
   t.date = document.getElementById("fDate").value || null;
+  t.detail = document.getElementById("fDet").value.trim() || null;
   saveTasks(); render(); dlg.close(); toast("Tarefa atualizada");
+});
+document.getElementById("doneEdit").addEventListener("click", ()=>{
+  const t = tasks.find(x=>x.id===editingId); if(!t){ dlg.close(); return; }
+  t.done = !t.done;
+  saveTasks(); render(); dlg.close(); toast(t.done ? "Tarefa concluída ✓" : "Tarefa reaberta");
 });
 document.getElementById("cancelEdit").addEventListener("click", ()=>dlg.close());
 document.getElementById("deleteEdit").addEventListener("click", ()=>{
