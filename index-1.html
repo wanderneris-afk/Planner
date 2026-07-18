@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Planner por Voz — Semanas × Contextos</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#F2F4F6; --surface:#FFFFFF; --ink:#17242F; --muted:#5C6B78;
+    --line:#DCE2E8; --rec:#C6402E; --accent:#0E6F5C; --accent-soft:#E2F0EC;
+    --radius:14px;
+    --font-display:'Archivo',system-ui,sans-serif;
+    --font-mono:'IBM Plex Mono',ui-monospace,monospace;
+    --font-body:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html{font-size:16px;}
+  body{background:var(--bg); color:var(--ink); font-family:var(--font-body); line-height:1.5;}
+  .wrap{max-width:1080px; margin:0 auto; padding:24px 20px 80px;}
+
+  /* ---------- Cabeçalho ---------- */
+  header.app{display:flex; align-items:baseline; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-bottom:20px;}
+  header.app h1{font-family:var(--font-display); font-weight:800; font-size:1.5rem; letter-spacing:-0.02em;}
+  header.app .sub{font-family:var(--font-mono); font-size:0.75rem; color:var(--muted);}
+
+  /* ---------- Hero de captura (assinatura) ---------- */
+  .capture{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:24px; margin-bottom:24px;}
+  .capture-top{display:flex; gap:20px; align-items:center; flex-wrap:wrap;}
+  #micBtn{
+    width:84px; height:84px; border-radius:50%; border:none; cursor:pointer; flex:0 0 auto;
+    background:var(--accent); color:#fff; display:grid; place-items:center;
+    transition:transform .15s ease, background .2s ease;
+  }
+  #micBtn:hover{transform:scale(1.04);}
+  #micBtn:focus-visible{outline:3px solid var(--ink); outline-offset:3px;}
+  #micBtn.recording{background:var(--rec); animation:pulse 1.4s infinite;}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(198,64,46,.35);}70%{box-shadow:0 0 0 18px rgba(198,64,46,0);}100%{box-shadow:0 0 0 0 rgba(198,64,46,0);}}
+  @media (prefers-reduced-motion:reduce){#micBtn.recording{animation:none;} #micBtn:hover{transform:none;}}
+  #micBtn svg{width:34px; height:34px;}
+  .capture-info{flex:1; min-width:240px;}
+  .capture-info .state{font-family:var(--font-display); font-weight:700; font-size:1.05rem;}
+  .capture-info .hint{color:var(--muted); font-size:0.85rem; margin-top:4px;}
+  .transcript{
+    margin-top:16px; min-height:44px; padding:10px 14px; border-radius:10px;
+    background:var(--bg); font-family:var(--font-mono); font-size:0.9rem; color:var(--ink);
+  }
+  .transcript.empty{color:var(--muted);}
+  .parse-chips{display:flex; gap:8px; margin-top:12px; flex-wrap:wrap;}
+  .chip{font-family:var(--font-mono); font-size:0.75rem; padding:5px 10px; border-radius:999px; border:1px dashed var(--line); color:var(--muted);}
+  .chip.filled{border-style:solid; border-color:var(--accent); background:var(--accent-soft); color:var(--accent); font-weight:600;}
+
+  /* Cartão de confirmação */
+  .confirm{margin-top:16px; border:1px solid var(--accent); border-radius:10px; padding:14px 16px; background:var(--accent-soft); display:none;}
+  .confirm.show{display:block;}
+  .confirm .action-label{font-family:var(--font-mono); font-size:0.7rem; text-transform:uppercase; letter-spacing:.08em; color:var(--accent); margin-bottom:6px;}
+  .confirm .task-line{font-weight:600;}
+  .confirm .meta{font-family:var(--font-mono); font-size:0.8rem; color:var(--muted); margin-top:2px;}
+  .confirm-fields{display:flex; gap:10px; margin-top:10px; flex-wrap:wrap;}
+  .confirm-fields label{font-family:var(--font-mono); font-size:0.72rem; color:var(--muted); display:flex; flex-direction:column; gap:4px; flex:1; min-width:130px;}
+  .confirm-fields input{padding:8px 10px; border:1px solid var(--line); border-radius:8px; font-size:0.9rem; background:#fff; font-family:var(--font-body);}
+  .confirm .btns{display:flex; gap:10px; margin-top:12px;}
+  button.primary, button.ghost{
+    font-family:var(--font-display); font-weight:700; font-size:0.85rem;
+    padding:8px 16px; border-radius:8px; cursor:pointer; border:1px solid transparent;
+  }
+  button.primary{background:var(--accent); color:#fff;}
+  button.primary:hover{filter:brightness(1.08);}
+  button.ghost{background:transparent; border-color:var(--line); color:var(--ink);}
+  button.ghost:hover{background:var(--bg);}
+  button:focus-visible{outline:3px solid var(--ink); outline-offset:2px;}
+  .error-note{margin-top:12px; color:var(--rec); font-size:0.85rem; display:none;}
+  .error-note.show{display:block;}
+
+  /* ---------- Guia de comandos ---------- */
+  details.guide{margin-bottom:24px; border:1px solid var(--line); border-radius:var(--radius); background:var(--surface);}
+  details.guide summary{cursor:pointer; padding:14px 20px; font-family:var(--font-display); font-weight:700; font-size:0.9rem;}
+  details.guide .guide-body{padding:0 20px 18px; font-size:0.88rem; color:var(--muted);}
+  details.guide code{font-family:var(--font-mono); font-size:0.82rem; background:var(--bg); padding:2px 6px; border-radius:5px; color:var(--ink); display:inline-block; margin:2px 0;}
+
+  /* ---------- Controles da visão ---------- */
+  .controls{display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-bottom:16px;}
+  .controls label{font-family:var(--font-mono); font-size:0.78rem; color:var(--muted);}
+  .controls select, .controls input[type="date"]{
+    font-family:var(--font-mono); font-size:0.85rem; padding:7px 10px;
+    border:1px solid var(--line); border-radius:8px; background:var(--surface); color:var(--ink);
+  }
+  .controls .spacer{flex:1;}
+  #printBtn{background:var(--ink); color:#fff; border:none; font-family:var(--font-display); font-weight:700; font-size:0.9rem; padding:10px 20px; border-radius:8px; cursor:pointer;}
+  #printBtn:hover{filter:brightness(1.25);}
+
+  /* ---------- Grade semanal ---------- */
+  .grid-card{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:20px; overflow-x:auto;}
+  .grid-title{font-family:var(--font-display); font-weight:800; font-size:1.1rem; margin-bottom:4px;}
+  .grid-sub{font-family:var(--font-mono); font-size:0.72rem; color:var(--muted); margin-bottom:14px;}
+  table.week-grid{border-collapse:collapse; width:100%; min-width:640px;}
+  table.week-grid th, table.week-grid td{border:1px solid var(--line); vertical-align:top; padding:8px;}
+  table.week-grid thead th{
+    font-family:var(--font-mono); font-size:0.72rem; font-weight:600; text-transform:uppercase;
+    letter-spacing:.05em; background:var(--bg); text-align:left;
+  }
+  table.week-grid thead th .range{display:block; font-weight:400; color:var(--muted); text-transform:none; letter-spacing:0;}
+  th.ctx-col{width:120px; font-family:var(--font-display); font-weight:700; font-size:0.85rem; background:var(--bg); text-align:left;}
+  th.ctx-col .ctx-tag{display:inline-block; padding:3px 9px; border-radius:6px; font-size:0.8rem;}
+  .task-item{font-size:0.8rem; padding:5px 7px; border-radius:6px; margin-bottom:5px; border-left:3px solid transparent; background:var(--bg); cursor:pointer;}
+  .task-item:hover{outline:2px solid var(--line);}
+  .task-item .t-date{font-family:var(--font-mono); font-size:0.66rem; color:var(--muted); display:block;}
+  .empty-grid{padding:32px; text-align:center; color:var(--muted); font-size:0.9rem;}
+
+  /* ---------- Modal de edição manual ---------- */
+  dialog#editDialog{border:1px solid var(--line); border-radius:var(--radius); padding:22px; max-width:420px; width:92%;}
+  dialog::backdrop{background:rgba(23,36,47,.45);}
+  dialog h3{font-family:var(--font-display); font-weight:700; margin-bottom:14px;}
+  dialog .field{margin-bottom:12px;}
+  dialog .field label{display:block; font-family:var(--font-mono); font-size:0.72rem; color:var(--muted); margin-bottom:4px;}
+  dialog .field input{width:100%; padding:8px 10px; border:1px solid var(--line); border-radius:8px; font-size:0.9rem; font-family:var(--font-body);}
+  dialog .btns{display:flex; gap:10px; margin-top:16px; flex-wrap:wrap;}
+  button.danger{background:transparent; border:1px solid var(--rec); color:var(--rec); font-family:var(--font-display); font-weight:700; font-size:0.85rem; padding:8px 16px; border-radius:8px; cursor:pointer;}
+  button.danger:hover{background:var(--rec); color:#fff;}
+
+  .toast{position:fixed; bottom:24px; left:50%; transform:translateX(-50%); background:var(--ink); color:#fff; font-family:var(--font-mono); font-size:0.8rem; padding:10px 18px; border-radius:999px; opacity:0; transition:opacity .25s; pointer-events:none;}
+  .toast.show{opacity:1;}
+
+  /* ---------- Impressão A4 paisagem ---------- */
+  @media print{
+    @page{size:A4 landscape; margin:10mm;}
+    body{background:#fff;}
+    .wrap{max-width:none; padding:0;}
+    header.app, .capture, details.guide, .controls, .toast{display:none !important;}
+    .grid-card{border:none; padding:0; overflow:visible;}
+    table.week-grid{min-width:0; width:100%; font-size:9pt;}
+    table.week-grid th, table.week-grid td{border:0.5pt solid #999; padding:4pt;}
+    .task-item{background:#fff; border:0.5pt solid #ccc; page-break-inside:avoid;}
+    .task-item:hover{outline:none;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="app">
+    <h1>Planner por Voz</h1>
+    <span class="sub">contextos × semanas · pt-BR</span>
+  </header>
+
+  <!-- Captura por voz -->
+  <section class="capture" aria-label="Captura por voz">
+    <div class="capture-top">
+      <button id="micBtn" aria-label="Iniciar ou parar gravação" title="Falar tarefa">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/>
+          <path d="M19 10v1a7 7 0 0 1-14 0v-1"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/>
+        </svg>
+      </button>
+      <div class="capture-info">
+        <div class="state" id="stateLabel">Toque no microfone e fale</div>
+        <div class="hint">Ex.: “Fechar relatório de turnover, contexto trabalho, dia 22 de julho”</div>
+      </div>
+    </div>
+    <div class="transcript empty" id="transcript">O que você falar aparece aqui…</div>
+    <div class="parse-chips">
+      <span class="chip" id="chipTask">tarefa</span>
+      <span class="chip" id="chipCtx">contexto</span>
+      <span class="chip" id="chipDate">data</span>
+      <span class="chip" id="chipAction">ação: adicionar</span>
+    </div>
+    <div class="confirm" id="confirmCard">
+      <div class="action-label" id="confirmAction">Adicionar tarefa</div>
+      <div class="task-line" id="confirmText"></div>
+      <div class="meta" id="confirmMeta"></div>
+      <div class="confirm-fields" id="confirmFields">
+        <label>Contexto<input id="cCtxInput" type="text" placeholder="Geral"></label>
+        <label>Data<input id="cDateInput" type="date"></label>
+      </div>
+      <div class="btns">
+        <button class="primary" id="confirmYes">Confirmar</button>
+        <button class="ghost" id="confirmNo">Descartar</button>
+      </div>
+    </div>
+    <div class="error-note" id="errorNote"></div>
+  </section>
+
+  <!-- Guia -->
+  <details class="guide">
+    <summary>Comandos de voz que o app entende</summary>
+    <div class="guide-body">
+      <p><strong>Fluxo guiado:</strong> fale só a tarefa e o app pergunta em voz alta “Qual o contexto?” e “Para qual data?” — responda falando. Diga <em>“pular”</em>, <em>“sem contexto”</em> ou <em>“sem data”</em> para deixar em branco.</p>
+      <p style="margin-top:8px"><strong>Adicionar de uma vez só</strong> (opcional): fale a tarefa já com as palavras-chave <em>contexto</em> e <em>dia/data</em>.<br>
+      <code>Preparar dashboard de headcount contexto trabalho dia 24 de julho</code><br>
+      <code>Comprar presente contexto pessoal amanhã</code></p>
+      <p style="margin-top:8px"><strong>Editar</strong> (comece com “editar”, “alterar” ou “mudar” + parte do nome da tarefa):<br>
+      <code>Editar dashboard de headcount para dia 30</code><br>
+      <code>Alterar comprar presente contexto casa</code></p>
+      <p style="margin-top:8px"><strong>Excluir</strong> (comece com “excluir”, “apagar” ou “remover”):<br>
+      <code>Excluir comprar presente</code></p>
+      <p style="margin-top:8px"><strong>Datas aceitas:</strong> “hoje”, “amanhã”, “depois de amanhã”, dias da semana (“sexta”, “próxima segunda”), “dia 22”, “22 de julho”, “22 de julho de 2026”.</p>
+      <p style="margin-top:8px">Você também pode <strong>clicar em qualquer tarefa</strong> na grade para editar ou excluir manualmente.</p>
+    </div>
+  </details>
+
+  <!-- Controles -->
+  <div class="controls">
+    <button class="ghost" id="prevWeek">‹ Anterior</button>
+    <label>Semana de
+      <input type="date" id="weekDate">
+    </label>
+    <button class="ghost" id="nextWeek">Próxima ›</button>
+    <span class="spacer"></span>
+    <button id="printBtn">Gerar PDF (imprimir)</button>
+  </div>
+
+  <!-- Grade -->
+  <section class="grid-card" id="gridCard">
+    <div class="grid-title">Visão semanal</div>
+    <div class="grid-sub" id="gridSub"></div>
+    <div id="gridHost"></div>
+  </section>
+</div>
+
+<!-- Modal edição manual -->
+<dialog id="editDialog">
+  <h3>Editar tarefa</h3>
+  <div class="field"><label for="fText">Tarefa</label><input id="fText" type="text"></div>
+  <div class="field"><label for="fCtx">Contexto</label><input id="fCtx" type="text"></div>
+  <div class="field"><label for="fDate">Data</label><input id="fDate" type="date"></div>
+  <div class="btns">
+    <button class="primary" id="saveEdit">Salvar</button>
+    <button class="ghost" id="cancelEdit">Cancelar</button>
+    <button class="danger" id="deleteEdit">Excluir</button>
+  </div>
+</dialog>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+"use strict";
+
+/* ================= Estado & armazenamento ================= */
+let tasks = [];            // {id, text, context, date(YYYY-MM-DD|null)}
+let editingId = null;      // id em edição no modal
+let pending = null;        // ação pendente de confirmação por voz
+
+function loadTasks(){
+  try{
+    const raw = localStorage.getItem("plannerVozTasks");
+    if(raw) tasks = JSON.parse(raw);
+  }catch(e){ tasks = []; }
+}
+function saveTasks(){
+  try{ localStorage.setItem("plannerVozTasks", JSON.stringify(tasks)); }
+  catch(e){ /* modo memória */ }
+}
+
+/* ================= Utilidades de data ================= */
+const MONTHS = {janeiro:0,fevereiro:1,"março":2,marco:2,abril:3,maio:4,junho:5,julho:6,agosto:7,setembro:8,outubro:9,novembro:10,dezembro:11};
+const WEEKDAYS = {domingo:0,segunda:1,"terça":2,terca:2,quarta:3,quinta:4,sexta:5,"sábado":6,sabado:6};
+
+function toISO(d){ return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+function fromISO(s){ const [y,m,dd]=s.split("-").map(Number); return new Date(y,m-1,dd); }
+function sundayOf(d){ const x=new Date(d); x.setDate(x.getDate()-x.getDay()); x.setHours(0,0,0,0); return x; }
+function weekOfYear(sun){ const jan1=new Date(sun.getFullYear(),0,1); const first=sundayOf(jan1); return Math.floor((sun-first)/(7*24*3600*1000))+1; }
+function fmtShort(d){ return String(d.getDate()).padStart(2,"0")+"/"+String(d.getMonth()+1).padStart(2,"0"); }
+function fmtLong(iso){ if(!iso) return "sem data"; const d=fromISO(iso); return d.toLocaleDateString("pt-BR",{weekday:"short",day:"2-digit",month:"short"}); }
+
+/* Extrai uma data do texto falado. Retorna {iso, matchedText} ou null. */
+function parseDate(text){
+  const t = text.toLowerCase();
+  const today = new Date(); today.setHours(0,0,0,0);
+
+  let m;
+  // "22 de julho de 2026" | "22 de julho" | "dia 22 de julho"
+  m = t.match(/(?:dia\s+)?(\d{1,2})\s+de\s+([a-zçã]+)(?:\s+de\s+(\d{4}))?/);
+  if(m && MONTHS[m[2]]!==undefined){
+    const day=+m[1], mon=MONTHS[m[2]];
+    let year = m[3] ? +m[3] : today.getFullYear();
+    let d = new Date(year,mon,day);
+    if(!m[3] && d < today) d = new Date(year+1,mon,day); // sem ano e já passou → próximo ano
+    return {iso:toISO(d), matchedText:m[0]};
+  }
+  // "dia 22/07" ou "22/07/2026"
+  m = t.match(/(?:dia\s+)?(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?/);
+  if(m){
+    const day=+m[1], mon=+m[2]-1;
+    let year = m[3] ? (+m[3]<100 ? 2000+ +m[3] : +m[3]) : today.getFullYear();
+    let d = new Date(year,mon,day);
+    if(!m[3] && d < today) d = new Date(year+1,mon,day);
+    return {iso:toISO(d), matchedText:m[0]};
+  }
+  // relativos
+  m = t.match(/depois\s+de\s+amanh[ãa]/);
+  if(m){ const d=new Date(today); d.setDate(d.getDate()+2); return {iso:toISO(d), matchedText:m[0]}; }
+  m = t.match(/\bamanh[ãa]\b/);
+  if(m){ const d=new Date(today); d.setDate(d.getDate()+1); return {iso:toISO(d), matchedText:m[0]}; }
+  m = t.match(/\bhoje\b/);
+  if(m){ return {iso:toISO(today), matchedText:m[0]}; }
+  // dias da semana, com "próxima" opcional
+  m = t.match(/(?:(pr[óo]xim[ao])\s+)?(?:na\s+|no\s+)?\b(domingo|segunda|ter[çc]a|quarta|quinta|sexta|s[áa]bado)(?:-feira)?\b/);
+  if(m){
+    const target = WEEKDAYS[m[2].normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace("terca","terça") in WEEKDAYS ? m[2] : m[2]] ?? WEEKDAYS[m[2].replace("á","a").replace("ç","c")];
+    const wd = (target!==undefined)? target : null;
+    if(wd!==null){
+      const d=new Date(today);
+      let diff = (wd - d.getDay() + 7) % 7;
+      if(diff===0) diff=7;                 // mesma palavra hoje → próxima ocorrência
+      if(m[1]) diff += (diff<=7 && (wd - today.getDay()+7)%7===0) ? 0 : 0; // "próxima" já coberto
+      d.setDate(d.getDate()+diff);
+      return {iso:toISO(d), matchedText:m[0]};
+    }
+  }
+  // "dia 22" (só o número)
+  m = t.match(/dia\s+(\d{1,2})\b/);
+  if(m){
+    const day=+m[1];
+    let d = new Date(today.getFullYear(), today.getMonth(), day);
+    if(d < today) d = new Date(today.getFullYear(), today.getMonth()+1, day);
+    return {iso:toISO(d), matchedText:m[0]};
+  }
+  return null;
+}
+
+/* ================= Parser de comandos ================= */
+function normalize(s){ return s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").trim(); }
+
+function parseCommand(raw){
+  let text = raw.trim().replace(/[.!?]+$/,"");
+  const lower = normalize(text);
+
+  let action = "add";
+  if(/^(editar|alterar|mudar)\b/.test(lower)) action = "edit";
+  else if(/^(excluir|apagar|remover|deletar)\b/.test(lower)) action = "delete";
+
+  // remove o verbo de comando + "tarefa" opcional
+  let body = text.replace(/^(editar|alterar|mudar|excluir|apagar|remover|deletar)\s+(a\s+)?(tarefa\s+)?/i,"");
+
+  // data
+  const dateHit = parseDate(body);
+  let dateISO = dateHit ? dateHit.iso : null;
+  if(dateHit){
+    body = body.replace(new RegExp("(?:para\\s+(?:o\\s+)?)?(?:data\\s+)?"+dateHit.matchedText.replace(/[.*+?^${}()|[\]\\]/g,"\\$&"),"i"), " ");
+  }
+
+  // contexto
+  let context = null;
+  const ctxM = body.match(/contexto\s+(?:de\s+)?([\p{L}\p{N} ]+?)(?=$|,|\s+dia\b|\s+data\b|\s+para\b)/iu);
+  if(ctxM){
+    context = ctxM[1].trim();
+    body = body.replace(ctxM[0], " ");
+  }
+
+  // limpa resíduos
+  body = body.replace(/\b(no|na|em|para|pro|pra)\s*$/i,"").replace(/,\s*/g," ").replace(/\s{2,}/g," ").trim();
+
+  return {action, text: body, context, dateISO};
+}
+
+/* Busca fuzzy: melhor tarefa cujo texto contenha o trecho falado (ou vice-versa) */
+function findTask(spoken){
+  const s = normalize(spoken);
+  if(!s) return null;
+  let best=null, bestScore=0;
+  tasks.forEach(t=>{
+    const tt = normalize(t.text);
+    let score = 0;
+    if(tt===s) score=100;
+    else if(tt.includes(s)) score=80+s.length;
+    else if(s.includes(tt)) score=70+tt.length;
+    else{
+      const words = s.split(" ").filter(w=>w.length>2);
+      const hits = words.filter(w=>tt.includes(w)).length;
+      if(words.length && hits/words.length>=0.6) score=40+hits;
+    }
+    if(score>bestScore){ bestScore=score; best=t; }
+  });
+  return bestScore>=40 ? best : null;
+}
+
+/* ================= Reconhecimento de voz ================= */
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+const micBtn = document.getElementById("micBtn");
+const stateLabel = document.getElementById("stateLabel");
+const transcriptEl = document.getElementById("transcript");
+const errorNote = document.getElementById("errorNote");
+let recog = null, listening = false;
+
+function setChips(parsed){
+  const cT=document.getElementById("chipTask"), cC=document.getElementById("chipCtx"),
+        cD=document.getElementById("chipDate"), cA=document.getElementById("chipAction");
+  const set=(el, filled, label)=>{ el.className="chip"+(filled?" filled":""); el.textContent=label; };
+  if(!parsed){ set(cT,false,"tarefa"); set(cC,false,"contexto"); set(cD,false,"data"); set(cA,false,"ação: adicionar"); return; }
+  set(cT, !!parsed.text, parsed.text ? "tarefa: "+parsed.text.slice(0,30) : "tarefa");
+  set(cC, !!parsed.context, parsed.context ? "contexto: "+parsed.context : "contexto");
+  set(cD, !!parsed.dateISO, parsed.dateISO ? "data: "+fmtLong(parsed.dateISO) : "data");
+  const names={add:"adicionar", edit:"editar", delete:"excluir"};
+  set(cA, parsed.action!=="add", "ação: "+names[parsed.action]);
+}
+
+if(!SR){
+  stateLabel.textContent = "Reconhecimento de voz indisponível";
+  errorNote.textContent = "Este navegador não suporta reconhecimento de voz. Use Google Chrome ou Microsoft Edge. Você ainda pode adicionar tarefas clicando na grade.";
+  errorNote.classList.add("show");
+  micBtn.disabled = true; micBtn.style.opacity=.4; micBtn.style.cursor="not-allowed";
+}else{
+  recog = new SR();
+  recog.lang = "pt-BR";
+  recog.interimResults = true;
+  recog.continuous = false;
+
+  recog.onstart = ()=>{ listening=true; micBtn.classList.add("recording"); stateLabel.textContent="Ouvindo… fale agora"; errorNote.classList.remove("show"); };
+  recog.onend = ()=>{ listening=false; micBtn.classList.remove("recording"); if(stateLabel.textContent.startsWith("Ouvindo")) stateLabel.textContent="Toque no microfone e fale"; };
+  recog.onerror = (e)=>{
+    listening=false; micBtn.classList.remove("recording");
+    const msgs = {"not-allowed":"Permissão de microfone negada. Autorize o microfone nas configurações do site.","no-speech":"Não ouvi nada. Tente de novo mais perto do microfone.","audio-capture":"Nenhum microfone encontrado."};
+    errorNote.textContent = msgs[e.error] || ("Erro no reconhecimento: "+e.error);
+    errorNote.classList.add("show");
+    stateLabel.textContent="Toque no microfone e fale";
+  };
+  recog.onresult = (ev)=>{
+    let final="", interim="";
+    for(let i=ev.resultIndex;i<ev.results.length;i++){
+      if(ev.results[i].isFinal) final += ev.results[i][0].transcript;
+      else interim += ev.results[i][0].transcript;
+    }
+    const shown = (final||interim).trim();
+    if(shown){ transcriptEl.textContent = shown; transcriptEl.classList.remove("empty"); if(!flowMode) setChips(parseCommand(shown)); }
+    if(final.trim()) handleSpeech(final.trim());
+  };
+  micBtn.addEventListener("click", ()=>{ if(listening){ recog.stop(); } else { hideConfirm(); try{recog.start();}catch(e){} } });
+}
+
+/* ================= Fluxo de confirmação (guiado por voz) ================= */
+const confirmCard = document.getElementById("confirmCard");
+const cCtxInput = document.getElementById("cCtxInput");
+const cDateInput = document.getElementById("cDateInput");
+let draft = null;      // tarefa em construção {text, context, dateISO, ctxAsked, dateAsked}
+let flowMode = null;   // null | "awaitContext" | "awaitDate"
+
+function speak(msg, then){
+  stateLabel.textContent = msg;
+  if(window.speechSynthesis){
+    try{
+      speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(msg);
+      u.lang = "pt-BR"; u.rate = 1.05;
+      u.onend = ()=>{ if(then) then(); };
+      u.onerror = ()=>{ if(then) then(); };
+      speechSynthesis.speak(u);
+      return;
+    }catch(e){}
+  }
+  if(then) setTimeout(then, 400);
+}
+function listenAgain(){
+  if(!recog) return;
+  setTimeout(()=>{ try{ recog.start(); }catch(e){} }, 150);
+}
+function isSkip(s){ return /\b(pular|pula|sem contexto|sem data|nenhum|nenhuma|nao sei)\b/.test(normalize(s)); }
+function chipsFromDraft(){ setChips({action:"add", text:draft.text, context:draft.context, dateISO:draft.dateISO}); }
+
+function handleSpeech(text){
+  /* --- Etapa: respondendo "Qual o contexto?" --- */
+  if(flowMode==="awaitContext" && draft){
+    if(!isSkip(text)){
+      let c = text.replace(/^(o\s+)?contexto\s+(e\s+|é\s+|de\s+)?/i,"").replace(/[.!?]+$/,"").trim();
+      const dh = parseDate(c);
+      if(dh && !draft.dateISO){ draft.dateISO = dh.iso; draft.dateAsked = true; c = c.replace(dh.matchedText,"").replace(/\b(dia|data|para)\s*$/i,"").trim(); }
+      if(c) draft.context = c;
+    }
+    flowMode = null; chipsFromDraft(); nextStep();
+    return;
+  }
+  /* --- Etapa: respondendo "Para qual data?" --- */
+  if(flowMode==="awaitDate" && draft){
+    if(!isSkip(text)){
+      const dh = parseDate(text);
+      if(!dh){
+        speak("Não entendi a data. Diga, por exemplo: dia 22 de julho, amanhã, ou sem data.", listenAgain);
+        return;
+      }
+      draft.dateISO = dh.iso;
+    }
+    flowMode = null; chipsFromDraft(); nextStep();
+    return;
+  }
+
+  /* --- Comando inicial --- */
+  const p = parseCommand(text);
+  setChips(p);
+
+  if(p.action==="add"){
+    if(!p.text){ showError("Não entendi a tarefa. Tente de novo."); return; }
+    draft = {text:p.text, context:p.context||null, dateISO:p.dateISO||null, ctxAsked:!!p.context, dateAsked:!!p.dateISO};
+    nextStep();
+  }
+  if(p.action==="delete"){
+    const t = findTask(p.text);
+    if(!t){ showError("Não encontrei nenhuma tarefa parecida com \""+p.text+"\"."); return; }
+    pending = {type:"delete", task:t};
+    showConfirm("Excluir tarefa", t.text, metaLine(t.context, t.date));
+  }
+  if(p.action==="edit"){
+    const t = findTask(p.text);
+    if(!t){ showError("Não encontrei nenhuma tarefa parecida com \""+p.text+"\"."); return; }
+    const changes = {};
+    if(p.dateISO) changes.date = p.dateISO;
+    if(p.context) changes.context = p.context;
+    if(!p.dateISO && !p.context){ showError("Entendi que é edição, mas não ouvi novo contexto nem nova data. Ex.: \"editar "+t.text+" para dia 30\"."); return; }
+    pending = {type:"edit", task:t, changes};
+    const parts=[];
+    if(changes.context) parts.push("novo contexto: "+changes.context);
+    if(changes.date) parts.push("nova data: "+fmtLong(changes.date));
+    showConfirm("Editar tarefa", t.text, parts.join(" · "));
+  }
+}
+
+/* Decide o próximo passo do fluxo guiado */
+function nextStep(){
+  if(!draft) return;
+  if(!draft.context && !draft.ctxAsked){
+    draft.ctxAsked = true; flowMode = "awaitContext";
+    speak("Qual o contexto?", listenAgain);
+    return;
+  }
+  if(!draft.dateISO && !draft.dateAsked){
+    draft.dateAsked = true; flowMode = "awaitDate";
+    speak("Para qual data?", listenAgain);
+    return;
+  }
+  // Tudo coletado → confirmação com campos ajustáveis
+  pending = {type:"add"};
+  document.getElementById("confirmAction").textContent = "Adicionar tarefa";
+  document.getElementById("confirmText").textContent = draft.text;
+  document.getElementById("confirmMeta").textContent = "Ajuste os campos abaixo se precisar:";
+  cCtxInput.value = draft.context || "";
+  cDateInput.value = draft.dateISO || "";
+  document.getElementById("confirmFields").style.display = "flex";
+  confirmCard.classList.add("show");
+  stateLabel.textContent = "Confirme a tarefa abaixo";
+}
+
+function metaLine(ctx, iso){ return (ctx? "contexto: "+ctx : "sem contexto") + " · " + fmtLong(iso); }
+function showConfirm(action, text, meta){
+  document.getElementById("confirmAction").textContent = action;
+  document.getElementById("confirmText").textContent = text;
+  document.getElementById("confirmMeta").textContent = meta;
+  document.getElementById("confirmFields").style.display = "none";
+  confirmCard.classList.add("show");
+}
+function hideConfirm(){
+  confirmCard.classList.remove("show");
+  pending=null; draft=null; flowMode=null;
+  if(window.speechSynthesis){ try{ speechSynthesis.cancel(); }catch(e){} }
+  stateLabel.textContent = "Toque no microfone e fale";
+}
+function showError(msg){ errorNote.textContent=msg; errorNote.classList.add("show"); }
+
+document.getElementById("confirmYes").addEventListener("click", ()=>{
+  if(!pending) return;
+  if(pending.type==="add"){
+    if(!draft) return;
+    tasks.push({id:Date.now().toString(36), text:draft.text, context:(cCtxInput.value.trim()||"Geral"), date:(cDateInput.value||null)});
+    toast("Tarefa adicionada");
+  }else if(pending.type==="delete"){
+    tasks = tasks.filter(t=>t.id!==pending.task.id);
+    toast("Tarefa excluída");
+  }else if(pending.type==="edit"){
+    const t = tasks.find(x=>x.id===pending.task.id);
+    if(t) Object.assign(t, pending.changes);
+    toast("Tarefa atualizada");
+  }
+  saveTasks(); render(); hideConfirm();
+  transcriptEl.textContent="O que você falar aparece aqui…"; transcriptEl.classList.add("empty"); setChips(null);
+});
+document.getElementById("confirmNo").addEventListener("click", hideConfirm);
+
+/* ================= Grade semanal ================= */
+const CTX_COLORS = ["#FFE58A","#B9E8C9","#D9CBF6","#BFE0F6","#F6C6D8","#FFD9B3","#C9E8E4","#E4E0C8"];
+function ctxColor(name){
+  const names = [...new Set(tasks.map(t=>t.context||"Geral"))].sort((a,b)=>a.localeCompare(b,"pt-BR"));
+  return CTX_COLORS[names.indexOf(name) % CTX_COLORS.length];
+}
+
+const weekDateInp = document.getElementById("weekDate");
+weekDateInp.value = toISO(sundayOf(new Date()));
+const DAY_NAMES = ["Domingo","Segunda","Terça","Quarta","Quinta","Sexta","Sábado"];
+
+function shiftWeek(days){
+  const d = fromISO(weekDateInp.value || toISO(new Date()));
+  d.setDate(d.getDate()+days);
+  weekDateInp.value = toISO(sundayOf(d));
+  render();
+}
+
+function render(){
+  const host = document.getElementById("gridHost");
+  const start = sundayOf(fromISO(weekDateInp.value || toISO(new Date())));
+  const end = new Date(start); end.setDate(end.getDate()+6);
+  const todayISO = toISO(new Date());
+  document.getElementById("gridSub").textContent =
+    "Semana "+weekOfYear(start)+" do ano · "+fmtShort(start)+" – "+fmtShort(end)+"/"+end.getFullYear()+" · "+tasks.length+" tarefa(s) no total";
+
+  if(tasks.length===0){
+    host.innerHTML = '<div class="empty-grid">Nenhuma tarefa ainda. Toque no microfone e fale a primeira — ela aparece aqui organizada por contexto e dia da semana.</div>';
+    return;
+  }
+
+  const contexts = [...new Set(tasks.map(t=>t.context||"Geral"))].sort((a,b)=>a.localeCompare(b,"pt-BR"));
+
+  // índice de coluna de uma tarefa: 0–6 = dia da semana; 7 = sem data; -1 = fora desta semana
+  function dayIdx(t){
+    if(!t.date) return 7;
+    const d = fromISO(t.date);
+    const diff = Math.round((d - start)/(24*3600*1000));
+    return (diff>=0 && diff<7) ? diff : -1;
+  }
+  const outOfWeek = tasks.filter(t=>dayIdx(t)===-1).length;
+  const hasNoDate = tasks.some(t=>!t.date);
+
+  let html = '<table class="week-grid"><thead><tr><th class="ctx-col">Contexto</th>';
+  for(let d=0; d<7; d++){
+    const day = new Date(start); day.setDate(day.getDate()+d);
+    const isToday = toISO(day)===todayISO;
+    html += '<th'+(isToday?' style="background:var(--accent-soft)"':'')+'>'+DAY_NAMES[d]+
+            '<span class="range">'+fmtShort(day)+(isToday?' · hoje':'')+'</span></th>';
+  }
+  if(hasNoDate) html += '<th>Sem data</th>';
+  html += '</tr></thead><tbody>';
+
+  contexts.forEach(ctx=>{
+    const color = ctxColor(ctx);
+    html += '<tr><th class="ctx-col"><span class="ctx-tag" style="background:'+color+'">'+esc(ctx)+'</span></th>';
+    const cols = hasNoDate ? 8 : 7;
+    for(let d=0; d<cols; d++){
+      const cell = tasks
+        .filter(t=>(t.context||"Geral")===ctx && dayIdx(t)===d)
+        .sort((a,b)=>(a.date||"9999").localeCompare(b.date||"9999"));
+      html += '<td>';
+      cell.forEach(t=>{
+        html += '<div class="task-item" data-id="'+t.id+'" style="border-left-color:'+color+'">'+esc(t.text)+'</div>';
+      });
+      html += '</td>';
+    }
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  if(outOfWeek>0){
+    html += '<p style="font-family:var(--font-mono);font-size:.72rem;color:var(--muted);margin-top:10px">'+outOfWeek+' tarefa(s) em outras semanas — use ‹ Anterior / Próxima › para vê-las.</p>';
+  }
+  host.innerHTML = html;
+
+  host.querySelectorAll(".task-item").forEach(el=>{
+    el.addEventListener("click", ()=>openEdit(el.dataset.id));
+  });
+}
+function esc(s){ return String(s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c])); }
+
+weekDateInp.addEventListener("change", ()=>{ weekDateInp.value = toISO(sundayOf(fromISO(weekDateInp.value))); render(); });
+document.getElementById("prevWeek").addEventListener("click", ()=>shiftWeek(-7));
+document.getElementById("nextWeek").addEventListener("click", ()=>shiftWeek(7));
+document.getElementById("printBtn").addEventListener("click", ()=>window.print());
+
+/* ================= Edição manual ================= */
+const dlg = document.getElementById("editDialog");
+function openEdit(id){
+  const t = tasks.find(x=>x.id===id); if(!t) return;
+  editingId = id;
+  document.getElementById("fText").value = t.text;
+  document.getElementById("fCtx").value = t.context||"";
+  document.getElementById("fDate").value = t.date||"";
+  dlg.showModal();
+}
+document.getElementById("saveEdit").addEventListener("click", ()=>{
+  const t = tasks.find(x=>x.id===editingId); if(!t){ dlg.close(); return; }
+  t.text = document.getElementById("fText").value.trim() || t.text;
+  t.context = document.getElementById("fCtx").value.trim() || "Geral";
+  t.date = document.getElementById("fDate").value || null;
+  saveTasks(); render(); dlg.close(); toast("Tarefa atualizada");
+});
+document.getElementById("cancelEdit").addEventListener("click", ()=>dlg.close());
+document.getElementById("deleteEdit").addEventListener("click", ()=>{
+  tasks = tasks.filter(t=>t.id!==editingId);
+  saveTasks(); render(); dlg.close(); toast("Tarefa excluída");
+});
+
+/* ================= Toast ================= */
+let toastTimer=null;
+function toast(msg){
+  const el=document.getElementById("toast");
+  el.textContent=msg; el.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>el.classList.remove("show"),2200);
+}
+
+/* ================= Início ================= */
+loadTasks();
+render();
+})();
+</script>
+</body>
+</html>
