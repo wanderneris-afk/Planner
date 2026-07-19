@@ -213,12 +213,26 @@
     #dayPick input{flex:1;}
   }
 
+  /* ---------- Guias estilo planilha ---------- */
+  .sheet-tabs{display:flex; gap:4px; align-items:flex-end; margin-top:4px;}
+  .sheet-tab{font-family:var(--font-display); font-weight:700; font-size:.92rem; padding:10px 20px; border:1px solid var(--line); border-bottom:none; border-radius:10px 10px 0 0; background:#EFECE3; color:var(--muted); cursor:pointer; position:relative; top:1px;}
+  .sheet-tab.active{background:var(--surface); color:var(--ink); z-index:2;}
+  .tab-panel{border:1px solid var(--line); border-radius:0 var(--radius) var(--radius) var(--radius); background:var(--surface); padding:16px; box-shadow:0 1px 2px rgba(38,38,36,.05);}
+  .tab-panel .grid-card{border:none; box-shadow:none; padding:0;}
+  .tab-panel .controls{margin-bottom:16px;}
+  @media (max-width:720px){
+    .sheet-tab{flex:1; text-align:center; padding:12px 8px;}
+    .tab-panel{padding:12px 10px;}
+  }
+
   /* ---------- Impressão A4 paisagem ---------- */
   @media print{
     @page{size:A4 landscape; margin:10mm;}
     body{background:#fff;}
     .wrap{max-width:none; padding:0;}
-    header.app, .capture, details.guide, .controls, .toast, .export-row, .agenda{display:none !important;}
+    header.app, .capture, details.guide, .controls, .toast, .export-row, .agenda, .sheet-tabs{display:none !important;}
+    .tab-panel{display:block !important; border:none !important; padding:0 !important; box-shadow:none !important;}
+    #tabDetails{margin-top:16pt;}
     table.week-grid{display:table !important;}
     table.list-table{display:table !important; min-width:0 !important; border-collapse:collapse !important;}
     table.list-table thead{display:table-header-group !important;}
@@ -269,7 +283,10 @@
       <span class="chip" id="chipDet">detalhe</span>
       <span class="chip" id="chipAction">ação: adicionar</span>
     </div>
-    <button class="ghost" id="cancelFlow" style="display:none; margin-top:12px">✕ Cancelar comando</button>
+    <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:12px">
+      <button class="ghost" id="typeBtn">⌨ Digitar tarefa</button>
+      <button class="ghost" id="cancelFlow" style="display:none">✕ Cancelar comando</button>
+    </div>
     <div class="confirm" id="confirmCard">
       <div class="action-label" id="confirmAction">Adicionar tarefa</div>
       <div class="task-line" id="confirmText"></div>
@@ -308,6 +325,12 @@
     </div>
   </details>
 
+  <!-- Guias estilo planilha -->
+  <div class="sheet-tabs">
+    <button class="sheet-tab active" id="tabBtnPlanner">Planner</button>
+    <button class="sheet-tab" id="tabBtnDetails">Detalhes</button>
+  </div>
+  <div class="tab-panel" id="tabPlanner">
   <!-- Controles -->
   <div class="controls">
     <div class="seg" role="group" aria-label="Modo de visão">
@@ -337,9 +360,11 @@
     <div class="grid-sub" id="gridSub"></div>
     <div id="gridHost"></div>
   </section>
+  </div>
 
+  <div class="tab-panel" id="tabDetails" style="display:none">
   <!-- Lista detalhada -->
-  <section class="grid-card" id="listCard" style="margin-top:24px">
+  <section class="grid-card" id="listCard">
     <div class="grid-title">Tarefas em detalhe</div>
     <div class="grid-sub" id="listSub"></div>
     <div class="export-row">
@@ -372,7 +397,30 @@
     </div>
     <div id="listHost" style="overflow-x:auto"></div>
   </section>
+  </div>
 </div>
+
+<!-- Modal nova tarefa digitada -->
+<dialog id="addDialog">
+  <h3>Nova tarefa</h3>
+  <div class="field"><label for="aText">Tarefa</label><input id="aText" type="text"></div>
+  <div class="field"><label for="aCtx">Contexto</label><input id="aCtx" type="text" placeholder="Geral"></div>
+  <div class="field"><label for="aDate">Data</label><input id="aDate" type="date"></div>
+  <div class="field"><label for="aDet">Detalhamento</label><input id="aDet" type="text"></div>
+  <div class="field"><label for="aRec">Recorrência</label>
+    <select id="aRec" style="width:100%; padding:8px 10px; border:1px solid var(--line); border-radius:8px; font-size:0.9rem; background:var(--surface)">
+      <option value="" selected>Sem recorrência</option>
+      <option value="semanal">Semanal</option>
+      <option value="mensal">Mensal</option>
+      <option value="anual">Anual</option>
+    </select>
+  </div>
+  <div class="field" id="aRecCountWrap" style="display:none"><label for="aRecCount">Repetições (ocorrências a criar)</label><input id="aRecCount" type="number" min="1" max="60" value="12" inputmode="numeric"></div>
+  <div class="btns">
+    <button class="primary" id="aSave">Salvar</button>
+    <button class="ghost" id="aCancel">Cancelar</button>
+  </div>
+</dialog>
 
 <!-- Modal edição manual -->
 <dialog id="editDialog">
@@ -1379,6 +1427,76 @@ document.getElementById("restoreMerge").addEventListener("click", ()=>{
   toast(added.length+" tarefa(s) adicionadas na mesclagem");
 });
 document.getElementById("restoreCancel").addEventListener("click", ()=>{ pendingRestore=null; restoreDlg.close(); });
+
+/* ================= Guias, tarefa digitada e recorrência ================= */
+const tabPlanner = document.getElementById("tabPlanner");
+const tabDetails = document.getElementById("tabDetails");
+const tabBtnP = document.getElementById("tabBtnPlanner");
+const tabBtnD = document.getElementById("tabBtnDetails");
+function setTab(which){
+  const planner = which==="planner";
+  tabPlanner.style.display = planner ? "" : "none";
+  tabDetails.style.display = planner ? "none" : "";
+  tabBtnP.classList.toggle("active", planner);
+  tabBtnD.classList.toggle("active", !planner);
+}
+tabBtnP.addEventListener("click", ()=>setTab("planner"));
+tabBtnD.addEventListener("click", ()=>setTab("details"));
+
+const addDlg = document.getElementById("addDialog");
+const aRecSel = document.getElementById("aRec");
+document.getElementById("typeBtn").addEventListener("click", ()=>{
+  document.getElementById("aText").value = "";
+  document.getElementById("aCtx").value = "";
+  document.getElementById("aDate").value = "";
+  document.getElementById("aDet").value = "";
+  aRecSel.value = "";
+  document.getElementById("aRecCount").value = 12;
+  document.getElementById("aRecCountWrap").style.display = "none";
+  addDlg.showModal();
+  document.getElementById("aText").focus();
+});
+aRecSel.addEventListener("change", ()=>{
+  document.getElementById("aRecCountWrap").style.display = aRecSel.value ? "" : "none";
+});
+document.getElementById("aCancel").addEventListener("click", ()=>addDlg.close());
+
+function addMonthsClamped(d, n){
+  const day = d.getDate();
+  const x = new Date(d.getFullYear(), d.getMonth()+n, 1);
+  const last = new Date(x.getFullYear(), x.getMonth()+1, 0).getDate();
+  x.setDate(Math.min(day, last));
+  return x;
+}
+document.getElementById("aSave").addEventListener("click", ()=>{
+  const text = document.getElementById("aText").value.trim();
+  if(!text){ toast("Informe o nome da tarefa"); return; }
+  const ctx = document.getElementById("aCtx").value.trim() || "Geral";
+  const dateISO = document.getElementById("aDate").value || null;
+  const det = document.getElementById("aDet").value.trim() || null;
+  const rec = aRecSel.value;
+
+  if(!rec){
+    tasks.push({id:Date.now().toString(36), text:text, context:ctx, date:dateISO, detail:det, done:false});
+    saveTasks(); render(); addDlg.close(); toast("Tarefa adicionada");
+    return;
+  }
+  if(!dateISO){ toast("Recorrência exige uma data inicial"); return; }
+  let count = parseInt(document.getElementById("aRecCount").value,10);
+  if(isNaN(count)) count = 12;
+  count = Math.min(60, Math.max(1, count));
+  const start = fromISO(dateISO);
+  const rid = Date.now().toString(36);
+  for(let i=0; i<count; i++){
+    let d;
+    if(rec==="semanal"){ d = new Date(start); d.setDate(d.getDate()+7*i); }
+    else if(rec==="mensal"){ d = addMonthsClamped(start, i); }
+    else { d = addMonthsClamped(start, 12*i); }
+    tasks.push({id:rid+"-"+i, rid:rid, text:text, context:ctx, date:toISO(d), detail:det, done:false});
+  }
+  saveTasks(); render(); addDlg.close();
+  toast(count+" ocorrências criadas (recorrência "+rec+")");
+});
 
 /* ================= Edição manual ================= */
 const dlg = document.getElementById("editDialog");
