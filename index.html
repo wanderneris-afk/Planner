@@ -29,6 +29,10 @@
   /* ---------- Hero de captura (assinatura) ---------- */
   .capture{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:24px; margin-bottom:24px; box-shadow:0 1px 2px rgba(38,38,36,.05);}
   .capture-top{display:flex; gap:20px; align-items:center; flex-wrap:wrap;}
+  .mic-row{display:flex; gap:14px; align-items:center; flex:0 0 auto;}
+  .type-btn{width:54px; height:54px; border-radius:50%; border:1px solid var(--line); background:var(--surface); font-size:1.35rem; cursor:pointer; color:var(--ink); flex:0 0 auto;}
+  .type-btn:hover{border-color:var(--accent); color:var(--accent);}
+  .tab-panel .capture{border:none; box-shadow:none; margin-bottom:0; padding:8px 2px;}
   #micBtn{
     width:84px; height:84px; border-radius:50%; border:none; cursor:pointer; flex:0 0 auto;
     background:var(--accent); color:#fff; display:grid; place-items:center;
@@ -77,8 +81,8 @@
   /* ---------- Guia de comandos ---------- */
   details.guide{margin-bottom:24px; border:1px solid var(--line); border-radius:var(--radius); background:var(--surface);}
   details.guide summary{cursor:pointer; padding:14px 20px; font-family:var(--font-display); font-weight:700; font-size:0.9rem;}
-  details.guide .guide-body{padding:0 20px 18px; font-size:0.88rem; color:var(--muted);}
-  details.guide code{font-family:var(--font-mono); font-size:0.82rem; background:var(--bg); padding:2px 6px; border-radius:5px; color:var(--ink); display:inline-block; margin:2px 0;}
+  .guide-body{font-size:0.9rem; color:var(--muted); line-height:1.6;}
+  .guide-body code{font-family:var(--font-mono); font-size:0.82rem; background:var(--bg); padding:2px 6px; border-radius:5px; color:var(--ink); display:inline-block; margin:2px 0;}
 
   /* ---------- Controles da visão ---------- */
   .controls{display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-bottom:16px;}
@@ -214,14 +218,14 @@
   }
 
   /* ---------- Guias estilo planilha ---------- */
-  .sheet-tabs{display:flex; gap:4px; align-items:flex-end; margin-top:4px;}
+  .sheet-tabs{display:flex; gap:4px; align-items:flex-end; margin-top:4px; flex-wrap:wrap;}
   .sheet-tab{font-family:var(--font-display); font-weight:700; font-size:.92rem; padding:10px 20px; border:1px solid var(--line); border-bottom:none; border-radius:10px 10px 0 0; background:#EFECE3; color:var(--muted); cursor:pointer; position:relative; top:1px;}
   .sheet-tab.active{background:var(--surface); color:var(--ink); z-index:2;}
   .tab-panel{border:1px solid var(--line); border-radius:0 var(--radius) var(--radius) var(--radius); background:var(--surface); padding:16px; box-shadow:0 1px 2px rgba(38,38,36,.05);}
   .tab-panel .grid-card{border:none; box-shadow:none; padding:0;}
   .tab-panel .controls{margin-bottom:16px;}
   @media (max-width:720px){
-    .sheet-tab{flex:1; text-align:center; padding:12px 8px;}
+    .sheet-tab{flex:1 1 auto; text-align:center; padding:11px 8px; font-size:.8rem;}
     .tab-panel{padding:12px 10px;}
   }
 
@@ -232,6 +236,7 @@
     .wrap{max-width:none; padding:0;}
     header.app, .capture, details.guide, .controls, .toast, .export-row, .agenda, .sheet-tabs{display:none !important;}
     .tab-panel{display:block !important; border:none !important; padding:0 !important; box-shadow:none !important;}
+    #tabIncluir, #tabHelp{display:none !important;}
     #tabDetails{margin-top:16pt;}
     table.week-grid{display:table !important;}
     table.list-table{display:table !important; min-width:0 !important; border-collapse:collapse !important;}
@@ -261,15 +266,19 @@
     <span class="sub">contextos × semanas · pt-BR</span>
   </header>
 
-  <!-- Captura por voz -->
+  <!-- Captura por voz (guia Incluir) -->
+  <div class="tab-panel" id="tabIncluir">
   <section class="capture" aria-label="Captura por voz">
     <div class="capture-top">
+      <div class="mic-row">
       <button id="micBtn" aria-label="Iniciar ou parar gravação" title="Falar tarefa">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/>
           <path d="M19 10v1a7 7 0 0 1-14 0v-1"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/>
         </svg>
       </button>
+      <button class="type-btn" id="typeBtn" title="Digitar tarefa" aria-label="Digitar tarefa">⌨</button>
+      </div>
       <div class="capture-info">
         <div class="state" id="stateLabel">Toque no microfone e fale</div>
         <div class="hint">Pause à vontade — o app segue ouvindo. Toque no microfone de novo quando terminar de falar.</div>
@@ -284,7 +293,6 @@
       <span class="chip" id="chipAction">ação: adicionar</span>
     </div>
     <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:12px">
-      <button class="ghost" id="typeBtn">⌨ Digitar tarefa</button>
       <button class="ghost" id="cancelFlow" style="display:none">✕ Cancelar comando</button>
     </div>
     <div class="confirm" id="confirmCard">
@@ -304,39 +312,19 @@
     <div class="error-note" id="errorNote"></div>
   </section>
 
-  <!-- Guia -->
-  <details class="guide">
-    <summary>Comandos de voz que o app entende</summary>
-    <div class="guide-body">
-      <p><strong>Fluxo guiado:</strong> fale só a tarefa e o app pergunta em voz alta “Qual o contexto?”, “Para qual data?” e “Qual o detalhamento?” — responda falando. Diga <em>“pular”</em> para deixar qualquer etapa em branco.</p>
-      <p style="margin-top:8px"><strong>Concluir</strong> (comece com “concluir” ou “finalizar”):<br>
-      <code>Concluir dashboard de headcount</code><br>
-      Ou toque na tarefa e use o botão <em>Concluir ✓</em>. Concluídas ficam claras com ✓ verde.</p>
-      <p style="margin-top:8px"><strong>Adicionar de uma vez só</strong> (opcional): fale a tarefa já com as palavras-chave <em>contexto</em> e <em>dia/data</em>.<br>
-      <code>Preparar dashboard de headcount contexto trabalho dia 24 de julho</code><br>
-      <code>Comprar presente contexto pessoal amanhã</code></p>
-      <p style="margin-top:8px"><strong>Editar</strong> (comece com “editar”, “alterar” ou “mudar” + parte do nome da tarefa):<br>
-      <code>Editar dashboard de headcount para dia 30</code><br>
-      <code>Alterar comprar presente contexto casa</code></p>
-      <p style="margin-top:8px"><strong>Excluir</strong> (comece com “excluir”, “apagar” ou “remover”):<br>
-      <code>Excluir comprar presente</code></p>
-      <p style="margin-top:8px"><strong>Datas aceitas:</strong> “hoje”, “amanhã”, “depois de amanhã”, dias da semana (“sexta”, “próxima segunda”), “dia 22”, “22 de julho”, “22 de julho de 2026”.</p>
-      <p style="margin-top:8px">Você também pode <strong>clicar em qualquer tarefa</strong> na grade para editar ou excluir manualmente.</p>
-    </div>
-  </details>
+  </div>
 
   <!-- Guias estilo planilha -->
   <div class="sheet-tabs">
-    <button class="sheet-tab active" id="tabBtnPlanner">Planner</button>
+    <button class="sheet-tab active" id="tabBtnIncluir">Incluir</button>
+    <button class="sheet-tab" id="tabBtnWeek">Semana</button>
+    <button class="sheet-tab" id="tabBtnDay">Dia</button>
     <button class="sheet-tab" id="tabBtnDetails">Detalhes</button>
+    <button class="sheet-tab" id="tabBtnHelp">Ajuda</button>
   </div>
-  <div class="tab-panel" id="tabPlanner">
+  <div class="tab-panel" id="tabPlanner" style="display:none">
   <!-- Controles -->
   <div class="controls">
-    <div class="seg" role="group" aria-label="Modo de visão">
-      <button class="seg-btn active" id="modeWeek">Semana</button>
-      <button class="seg-btn" id="modeDay">Dia</button>
-    </div>
     <button class="ghost" id="prevWeek">‹</button>
     <label id="weekPick">Semana nº
       <input type="number" id="weekNum" min="1" max="53" inputmode="numeric">
@@ -398,6 +386,26 @@
     <div id="listHost" style="overflow-x:auto"></div>
   </section>
   </div>
+
+  <div class="tab-panel" id="tabHelp" style="display:none">
+    <div class="grid-title" style="margin-bottom:10px">Ajuda</div>
+    <div class="guide-body">
+      <p><strong>Fluxo guiado:</strong> fale só a tarefa e o app pergunta em voz alta “Qual o contexto?”, “Para qual data?” e “Qual o detalhamento?” — responda falando. Diga <em>“pular”</em> para deixar qualquer etapa em branco.</p>
+      <p style="margin-top:8px"><strong>Concluir</strong> (comece com “concluir” ou “finalizar”):<br>
+      <code>Concluir dashboard de headcount</code><br>
+      Ou toque na tarefa e use o botão <em>Concluir ✓</em>. Concluídas ficam claras com ✓ verde.</p>
+      <p style="margin-top:8px"><strong>Adicionar de uma vez só</strong> (opcional): fale a tarefa já com as palavras-chave <em>contexto</em> e <em>dia/data</em>.<br>
+      <code>Preparar dashboard de headcount contexto trabalho dia 24 de julho</code><br>
+      <code>Comprar presente contexto pessoal amanhã</code></p>
+      <p style="margin-top:8px"><strong>Editar</strong> (comece com “editar”, “alterar” ou “mudar” + parte do nome da tarefa):<br>
+      <code>Editar dashboard de headcount para dia 30</code><br>
+      <code>Alterar comprar presente contexto casa</code></p>
+      <p style="margin-top:8px"><strong>Excluir</strong> (comece com “excluir”, “apagar” ou “remover”):<br>
+      <code>Excluir comprar presente</code></p>
+      <p style="margin-top:8px"><strong>Datas aceitas:</strong> “hoje”, “amanhã”, “depois de amanhã”, dias da semana (“sexta”, “próxima segunda”), “dia 22”, “22 de julho”, “22 de julho de 2026”.</p>
+      <p style="margin-top:8px">Você também pode <strong>clicar em qualquer tarefa</strong> na grade para editar ou excluir manualmente.</p>
+    </div>
+  </div>
 </div>
 
 <!-- Modal nova tarefa digitada -->
@@ -429,6 +437,13 @@
   <div class="field"><label for="fCtx">Contexto</label><input id="fCtx" type="text"></div>
   <div class="field"><label for="fDate">Data</label><input id="fDate" type="date"></div>
   <div class="field"><label for="fDet">Detalhamento</label><input id="fDet" type="text"></div>
+  <div class="field" id="editScopeWrap" style="display:none"><label for="editScope">Tarefa recorrente — aplicar a:</label>
+    <select id="editScope" style="width:100%; padding:8px 10px; border:1px solid var(--line); border-radius:8px; font-size:0.9rem; background:var(--surface)">
+      <option value="one" selected>Somente esta</option>
+      <option value="next">Esta e as próximas</option>
+      <option value="all">Toda a série</option>
+    </select>
+  </div>
   <div class="btns">
     <button class="primary" id="saveEdit">Salvar</button>
     <button class="ghost" id="doneEdit" style="border-color:var(--ok); color:var(--ok)">Concluir ✓</button>
@@ -933,8 +948,6 @@ function syncControls(){
   dayDateInp.value = currentDay;
   document.getElementById("weekPick").style.display = viewMode==="week" ? "" : "none";
   document.getElementById("dayPick").style.display = viewMode==="day" ? "" : "none";
-  document.getElementById("modeWeek").classList.toggle("active", viewMode==="week");
-  document.getElementById("modeDay").classList.toggle("active", viewMode==="day");
 }
 
 function rebuildCtxFilter(){
@@ -945,6 +958,7 @@ function rebuildCtxFilter(){
 
 function render(){
   syncControls();
+  document.querySelector("#gridCard .grid-title").textContent = viewMode==="week" ? "Visão semanal" : "Meu dia";
   rebuildCtxFilter();
   const host = document.getElementById("gridHost");
   const filter = ctxFilterSel.value;                 // "" = todos
@@ -1239,8 +1253,6 @@ function shift(dir){
 }
 document.getElementById("prevWeek").addEventListener("click", ()=>shift(-1));
 document.getElementById("nextWeek").addEventListener("click", ()=>shift(1));
-document.getElementById("modeWeek").addEventListener("click", ()=>{ viewMode="week"; render(); });
-document.getElementById("modeDay").addEventListener("click", ()=>{ viewMode="day"; render(); });
 weekNumInp.addEventListener("change", ()=>{
   let n = parseInt(weekNumInp.value,10);
   if(isNaN(n)) { syncControls(); return; }
@@ -1390,6 +1402,7 @@ restoreFile.addEventListener("change", ()=>{
         .filter(r=>r && typeof r.text==="string" && r.text.trim())
         .map(r=>({
           id: String(r.id || (Date.now().toString(36)+Math.random().toString(36).slice(2,6))),
+          rid: r.rid ? String(r.rid) : undefined,
           text: String(r.text).trim(),
           context: r.context ? String(r.context) : "Geral",
           date: (typeof r.date==="string" && /^\d{4}-\d{2}-\d{2}$/.test(r.date)) ? r.date : null,
@@ -1431,17 +1444,21 @@ document.getElementById("restoreCancel").addEventListener("click", ()=>{ pending
 /* ================= Guias, tarefa digitada e recorrência ================= */
 const tabPlanner = document.getElementById("tabPlanner");
 const tabDetails = document.getElementById("tabDetails");
-const tabBtnP = document.getElementById("tabBtnPlanner");
-const tabBtnD = document.getElementById("tabBtnDetails");
-function setTab(which){
-  const planner = which==="planner";
-  tabPlanner.style.display = planner ? "" : "none";
-  tabDetails.style.display = planner ? "none" : "";
-  tabBtnP.classList.toggle("active", planner);
-  tabBtnD.classList.toggle("active", !planner);
+function setTab(name){
+  const showPlanner = name==="week" || name==="day";
+  document.getElementById("tabIncluir").style.display = name==="incluir" ? "" : "none";
+  tabPlanner.style.display = showPlanner ? "" : "none";
+  tabDetails.style.display = name==="details" ? "" : "none";
+  document.getElementById("tabHelp").style.display = name==="help" ? "" : "none";
+  [["incluir","tabBtnIncluir"],["week","tabBtnWeek"],["day","tabBtnDay"],["details","tabBtnDetails"],["help","tabBtnHelp"]]
+    .forEach(p=>document.getElementById(p[1]).classList.toggle("active", p[0]===name));
+  if(showPlanner){ viewMode = (name==="week") ? "week" : "day"; render(); }
 }
-tabBtnP.addEventListener("click", ()=>setTab("planner"));
-tabBtnD.addEventListener("click", ()=>setTab("details"));
+document.getElementById("tabBtnIncluir").addEventListener("click", ()=>setTab("incluir"));
+document.getElementById("tabBtnWeek").addEventListener("click", ()=>setTab("week"));
+document.getElementById("tabBtnDay").addEventListener("click", ()=>setTab("day"));
+document.getElementById("tabBtnDetails").addEventListener("click", ()=>setTab("details"));
+document.getElementById("tabBtnHelp").addEventListener("click", ()=>setTab("help"));
 
 const addDlg = document.getElementById("addDialog");
 const aRecSel = document.getElementById("aRec");
@@ -1500,6 +1517,15 @@ document.getElementById("aSave").addEventListener("click", ()=>{
 
 /* ================= Edição manual ================= */
 const dlg = document.getElementById("editDialog");
+const editScopeSel = document.getElementById("editScope");
+
+function seriesTargets(t, scope){
+  if(!t.rid || scope==="one") return [t];
+  const series = tasks.filter(x=>x.rid===t.rid);
+  if(scope==="all") return series;
+  return series.filter(x=>(x.date||"") >= (t.date||""));  // esta e as próximas
+}
+
 function openEdit(id){
   const t = tasks.find(x=>x.id===id); if(!t) return;
   editingId = id;
@@ -1508,15 +1534,22 @@ function openEdit(id){
   document.getElementById("fDate").value = t.date||"";
   document.getElementById("fDet").value = t.detail||"";
   document.getElementById("doneEdit").textContent = t.done ? "Reabrir ↺" : "Concluir ✓";
+  const isSeries = !!t.rid && tasks.filter(x=>x.rid===t.rid).length>1;
+  document.getElementById("editScopeWrap").style.display = isSeries ? "" : "none";
+  editScopeSel.value = "one";
   dlg.showModal();
 }
 document.getElementById("saveEdit").addEventListener("click", ()=>{
   const t = tasks.find(x=>x.id===editingId); if(!t){ dlg.close(); return; }
-  t.text = document.getElementById("fText").value.trim() || t.text;
-  t.context = document.getElementById("fCtx").value.trim() || "Geral";
-  t.date = document.getElementById("fDate").value || null;
-  t.detail = document.getElementById("fDet").value.trim() || null;
-  saveTasks(); render(); dlg.close(); toast("Tarefa atualizada");
+  const scope = (document.getElementById("editScopeWrap").style.display==="none") ? "one" : editScopeSel.value;
+  const newText = document.getElementById("fText").value.trim() || t.text;
+  const newCtx = document.getElementById("fCtx").value.trim() || "Geral";
+  const newDet = document.getElementById("fDet").value.trim() || null;
+  const targets = seriesTargets(t, scope);
+  targets.forEach(x=>{ x.text = newText; x.context = newCtx; x.detail = newDet; });
+  t.date = document.getElementById("fDate").value || null;  // data só na tarefa aberta
+  saveTasks(); render(); dlg.close();
+  toast(targets.length>1 ? targets.length+" tarefas da série atualizadas" : "Tarefa atualizada");
 });
 document.getElementById("doneEdit").addEventListener("click", ()=>{
   const t = tasks.find(x=>x.id===editingId); if(!t){ dlg.close(); return; }
@@ -1525,8 +1558,14 @@ document.getElementById("doneEdit").addEventListener("click", ()=>{
 });
 document.getElementById("cancelEdit").addEventListener("click", ()=>dlg.close());
 document.getElementById("deleteEdit").addEventListener("click", ()=>{
-  tasks = tasks.filter(t=>t.id!==editingId);
-  saveTasks(); render(); dlg.close(); toast("Tarefa excluída");
+  const t = tasks.find(x=>x.id===editingId); if(!t){ dlg.close(); return; }
+  const scope = (document.getElementById("editScopeWrap").style.display==="none") ? "one" : editScopeSel.value;
+  const targets = seriesTargets(t, scope);
+  if(targets.length>1 && !confirm("Excluir "+targets.length+" tarefa(s) desta série?")) return;
+  const ids = new Set(targets.map(x=>x.id));
+  tasks = tasks.filter(x=>!ids.has(x.id));
+  saveTasks(); render(); dlg.close();
+  toast(targets.length>1 ? targets.length+" tarefas da série excluídas" : "Tarefa excluída");
 });
 
 /* ================= Toast ================= */
