@@ -117,7 +117,9 @@
   table.list-table td.lt-date{font-family:var(--font-mono); font-size:0.75rem; white-space:nowrap;}
   tr.done-row td{color:var(--muted); background:var(--ok-soft);}
   tr.done-row td.lt-task::before{content:"✓ "; color:var(--ok); font-weight:700;}
-  .export-row{display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px;}
+  .export-row{display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px; align-items:center;}
+  .exp-scope{font-family:var(--font-mono); font-size:0.78rem; color:var(--muted); display:flex; align-items:center; gap:8px;}
+  .exp-scope select{font-family:var(--font-mono); font-size:0.85rem; padding:7px 10px; border:1px solid var(--line); border-radius:8px; background:var(--surface); color:var(--ink);}
   .task-item:hover{outline:2px solid var(--line);}
   .task-item .t-date{font-family:var(--font-mono); font-size:0.66rem; color:var(--muted); display:block;}
   .empty-grid{padding:32px; text-align:center; color:var(--muted); font-size:0.9rem;}
@@ -207,6 +209,8 @@
   button.sm{padding:6px 10px; font-size:.75rem;}
   #ctxDialog{border:1px solid var(--line); border-radius:var(--radius); padding:22px; max-width:440px; width:92%;}
   #ctxDialog h3{font-family:var(--font-display); font-weight:700; margin-bottom:10px;}
+  #restoreDialog{border:1px solid var(--line); border-radius:var(--radius); padding:22px; max-width:440px; width:92%;}
+  #restoreDialog h3{font-family:var(--font-display); font-weight:700; margin-bottom:10px;}
   @media (max-width:720px){
     .seg{flex:1 1 100%;}
     .seg-btn{flex:1; padding:11px;}
@@ -345,8 +349,17 @@
     <div class="grid-title">Tarefas da semana em detalhe</div>
     <div class="grid-sub" id="listSub"></div>
     <div class="export-row">
+      <label class="exp-scope">Exportar:
+        <select id="exportScope">
+          <option value="periodo" selected>Período exibido</option>
+          <option value="todas">Todas as tarefas da base</option>
+        </select>
+      </label>
       <button class="ghost" id="exportCsvBtn">⬇ Exportar CSV (Planilhas Google)</button>
       <button class="ghost" id="copyTsvBtn">⧉ Copiar para colar na planilha</button>
+      <button class="ghost" id="backupBtn">💾 Backup completo</button>
+      <button class="ghost" id="restoreBtn">↩ Restaurar backup</button>
+      <input type="file" id="restoreFile" accept=".json,application/json" style="display:none">
     </div>
     <div id="listHost" style="overflow-x:auto"></div>
   </section>
@@ -373,6 +386,19 @@
   <div id="ctxList"></div>
   <div class="btns">
     <button class="ghost" id="ctxClose">Fechar</button>
+  </div>
+</dialog>
+
+<!-- Modal restaurar backup -->
+<dialog id="restoreDialog">
+  <h3>Restaurar backup</h3>
+  <p id="restoreInfo" style="font-size:0.9rem; margin-bottom:6px"></p>
+  <p style="font-size:0.82rem; color:var(--muted); margin-bottom:4px"><strong>Substituir tudo:</strong> a base atual é apagada e o backup assume o lugar.</p>
+  <p style="font-size:0.82rem; color:var(--muted)"><strong>Mesclar:</strong> as tarefas do backup são adicionadas às atuais, sem duplicar as já existentes.</p>
+  <div class="btns">
+    <button class="primary" id="restoreReplace">Substituir tudo</button>
+    <button class="ghost" id="restoreMerge">Mesclar</button>
+    <button class="ghost" id="restoreCancel">Cancelar</button>
   </div>
 </dialog>
 
@@ -1193,41 +1219,123 @@ function deleteCtx(name){
 }
 
 /* ================= Exportação para planilha ================= */
-function exportRows(){
-  return exportTasksArr.map(t=>[
+function getExportSet(){
+  const scope = document.getElementById("exportScope").value;
+  if(scope==="todas"){
+    const all = tasks.slice().sort((a,b)=>{
+      const d=(a.date||"9999").localeCompare(b.date||"9999");
+      return d!==0 ? d : (a.context||"Geral").localeCompare(b.context||"Geral","pt-BR");
+    });
+    return {list: all, label: "todas"};
+  }
+  return {list: exportTasksArr, label: exportLabel};
+}
+function exportRows(list){
+  return list.map(t=>[
     fmtBR(t.date), abbrOf(t.date)==="—"?"":abbrOf(t.date), t.context||"Geral", t.text, t.detail||"", t.done ? "Concluída" : "Pendente"
   ]);
 }
 const EXPORT_HEADER = ["Data","Dia","Contexto","Tarefa","Detalhamento","Status"];
 
 document.getElementById("exportCsvBtn").addEventListener("click", ()=>{
-  if(exportTasksArr.length===0){ toast("Nenhuma tarefa no período para exportar"); return; }
+  const set = getExportSet();
+  if(set.list.length===0){ toast("Nenhuma tarefa para exportar"); return; }
   const csvEsc = v=>'"'+String(v).replace(/"/g,'""')+'"';
-  const lines = [EXPORT_HEADER, ...exportRows()].map(r=>r.map(csvEsc).join(","));
+  const lines = [EXPORT_HEADER, ...exportRows(set.list)].map(r=>r.map(csvEsc).join(","));
   const blob = new Blob(["\uFEFF"+lines.join("\r\n")], {type:"text/csv;charset=utf-8"});
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = "tarefas-"+exportLabel+".csv";
+  a.download = "tarefas-"+set.label+".csv";
   document.body.appendChild(a); a.click();
   setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 2000);
-  toast("CSV baixado — abra com o Planilhas Google");
+  toast("CSV baixado ("+set.list.length+" tarefas) — abra com o Planilhas Google");
 });
 
 document.getElementById("copyTsvBtn").addEventListener("click", async ()=>{
-  if(exportTasksArr.length===0){ toast("Nenhuma tarefa no período para copiar"); return; }
-  const tsv = [EXPORT_HEADER, ...exportRows()]
+  const set = getExportSet();
+  if(set.list.length===0){ toast("Nenhuma tarefa para copiar"); return; }
+  const tsv = [EXPORT_HEADER, ...exportRows(set.list)]
     .map(r=>r.map(v=>String(v).replace(/[\t\r\n]+/g," ")).join("\t")).join("\n");
   try{
     await navigator.clipboard.writeText(tsv);
-    toast("Copiado — cole na planilha (célula A1)");
+    toast("Copiado ("+set.list.length+" tarefas) — cole na planilha (célula A1)");
   }catch(e){
     const ta = document.createElement("textarea");
     ta.value = tsv; document.body.appendChild(ta); ta.select();
-    try{ document.execCommand("copy"); toast("Copiado — cole na planilha (célula A1)"); }
+    try{ document.execCommand("copy"); toast("Copiado ("+set.list.length+" tarefas) — cole na planilha (célula A1)"); }
     catch(err){ toast("Não foi possível copiar neste navegador"); }
     ta.remove();
   }
 });
+
+/* ================= Backup e restauração ================= */
+const restoreDlg = document.getElementById("restoreDialog");
+const restoreFile = document.getElementById("restoreFile");
+let pendingRestore = null;
+
+document.getElementById("backupBtn").addEventListener("click", ()=>{
+  const payload = {app:"planner-voz", version:1, exportedAt:new Date().toISOString(), tasks:tasks};
+  const blob = new Blob([JSON.stringify(payload, null, 2)], {type:"application/json"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "planner-backup-"+toISO(new Date())+".json";
+  document.body.appendChild(a); a.click();
+  setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+  toast("Backup salvo ("+tasks.length+" tarefas) — guarde o arquivo no Drive");
+});
+
+document.getElementById("restoreBtn").addEventListener("click", ()=>{ restoreFile.value=""; restoreFile.click(); });
+
+restoreFile.addEventListener("change", ()=>{
+  const f = restoreFile.files && restoreFile.files[0];
+  if(!f) return;
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    try{
+      const data = JSON.parse(reader.result);
+      const raw = Array.isArray(data) ? data : data.tasks;
+      if(!Array.isArray(raw)) throw new Error("estrutura");
+      const clean = raw
+        .filter(r=>r && typeof r.text==="string" && r.text.trim())
+        .map(r=>({
+          id: String(r.id || (Date.now().toString(36)+Math.random().toString(36).slice(2,6))),
+          text: String(r.text).trim(),
+          context: r.context ? String(r.context) : "Geral",
+          date: (typeof r.date==="string" && /^\d{4}-\d{2}-\d{2}$/.test(r.date)) ? r.date : null,
+          detail: r.detail ? String(r.detail) : null,
+          done: !!r.done
+        }));
+      if(clean.length===0) throw new Error("vazio");
+      pendingRestore = clean;
+      document.getElementById("restoreInfo").textContent =
+        "Backup com "+clean.length+" tarefa(s)"+(data.exportedAt ? ", salvo em "+data.exportedAt.slice(0,10).split("-").reverse().join("/") : "")+
+        ". Sua base atual tem "+tasks.length+" tarefa(s).";
+      restoreDlg.showModal();
+    }catch(e){
+      toast("Arquivo inválido — selecione um backup gerado por este app");
+    }
+  };
+  reader.onerror = ()=>toast("Não foi possível ler o arquivo");
+  reader.readAsText(f);
+});
+
+document.getElementById("restoreReplace").addEventListener("click", ()=>{
+  if(!pendingRestore) { restoreDlg.close(); return; }
+  tasks = pendingRestore;
+  pendingRestore = null;
+  saveTasks(); render(); restoreDlg.close();
+  toast("Base restaurada: "+tasks.length+" tarefa(s)");
+});
+document.getElementById("restoreMerge").addEventListener("click", ()=>{
+  if(!pendingRestore) { restoreDlg.close(); return; }
+  const existing = new Set(tasks.map(t=>t.id));
+  const added = pendingRestore.filter(t=>!existing.has(t.id));
+  tasks = tasks.concat(added);
+  pendingRestore = null;
+  saveTasks(); render(); restoreDlg.close();
+  toast(added.length+" tarefa(s) adicionadas na mesclagem");
+});
+document.getElementById("restoreCancel").addEventListener("click", ()=>{ pendingRestore=null; restoreDlg.close(); });
 
 /* ================= Edição manual ================= */
 const dlg = document.getElementById("editDialog");
