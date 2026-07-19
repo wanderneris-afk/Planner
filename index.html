@@ -5,15 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Planner por Voz — Semanas × Contextos</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg:#F2F4F6; --surface:#FFFFFF; --ink:#17242F; --muted:#5C6B78;
-    --line:#DCE2E8; --rec:#C6402E; --accent:#0E6F5C; --accent-soft:#E2F0EC;
-    --radius:14px;
-    --font-display:'Archivo',system-ui,sans-serif;
+    --bg:#FAF9F5; --surface:#FFFFFF; --ink:#262624; --muted:#6B675E;
+    --line:#E6E2D9; --rec:#A8402F; --accent:#C15F3C; --accent-soft:#F4E7DF;
+    --ok:#4E7A5B; --ok-soft:#EDF2EB;
+    --radius:12px;
+    --font-display:'Source Serif 4',Georgia,serif;
     --font-mono:'IBM Plex Mono',ui-monospace,monospace;
-    --font-body:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+    --font-body:'Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
   }
   *{box-sizing:border-box; margin:0; padding:0;}
   html{font-size:16px;}
@@ -22,11 +23,11 @@
 
   /* ---------- Cabeçalho ---------- */
   header.app{display:flex; align-items:baseline; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-bottom:20px;}
-  header.app h1{font-family:var(--font-display); font-weight:800; font-size:1.5rem; letter-spacing:-0.02em;}
+  header.app h1{font-family:var(--font-display); font-weight:700; font-size:1.6rem; letter-spacing:-0.01em;}
   header.app .sub{font-family:var(--font-mono); font-size:0.75rem; color:var(--muted);}
 
   /* ---------- Hero de captura (assinatura) ---------- */
-  .capture{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:24px; margin-bottom:24px;}
+  .capture{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:24px; margin-bottom:24px; box-shadow:0 1px 2px rgba(38,38,36,.05);}
   .capture-top{display:flex; gap:20px; align-items:center; flex-wrap:wrap;}
   #micBtn{
     width:84px; height:84px; border-radius:50%; border:none; cursor:pointer; flex:0 0 auto;
@@ -91,7 +92,7 @@
   #printBtn:hover{filter:brightness(1.25);}
 
   /* ---------- Grade semanal ---------- */
-  .grid-card{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:20px; overflow-x:auto;}
+  .grid-card{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:20px; overflow-x:auto; box-shadow:0 1px 2px rgba(38,38,36,.05);}
   .grid-title{font-family:var(--font-display); font-weight:800; font-size:1.1rem; margin-bottom:4px;}
   .grid-sub{font-family:var(--font-mono); font-size:0.72rem; color:var(--muted); margin-bottom:14px;}
   table.week-grid{border-collapse:collapse; width:100%; min-width:640px;}
@@ -103,9 +104,9 @@
   table.week-grid thead th .range{display:block; font-weight:400; color:var(--muted); text-transform:none; letter-spacing:0;}
   th.ctx-col{width:120px; font-family:var(--font-display); font-weight:700; font-size:0.85rem; background:var(--bg); text-align:left;}
   th.ctx-col .ctx-tag{display:inline-block; padding:3px 9px; border-radius:6px; font-size:0.8rem;}
-  .task-item{font-size:0.8rem; padding:5px 7px; border-radius:6px; margin-bottom:5px; border-left:3px solid transparent; background:var(--bg); cursor:pointer;}
-  .task-item.done{opacity:.55; background:#EAF5EE;}
-  .task-item.done::before{content:"✓ "; color:var(--accent); font-weight:700;}
+  .task-item{font-size:0.8rem; padding:5px 7px; border-radius:6px; margin-bottom:5px; border-left:3px solid transparent; background:var(--bg); cursor:pointer; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none;}
+  .task-item.done{opacity:.6; background:var(--ok-soft);}
+  .task-item.done::before{content:"✓ "; color:var(--ok); font-weight:700;}
 
   /* Lista detalhada */
   table.list-table{border-collapse:collapse; width:100%; min-width:560px;}
@@ -114,8 +115,8 @@
   table.list-table tbody tr{cursor:pointer;}
   table.list-table tbody tr:hover td{background:var(--bg);}
   table.list-table td.lt-date{font-family:var(--font-mono); font-size:0.75rem; white-space:nowrap;}
-  tr.done-row td{color:var(--muted); background:#F4FAF6;}
-  tr.done-row td.lt-task::before{content:"✓ "; color:var(--accent); font-weight:700;}
+  tr.done-row td{color:var(--muted); background:var(--ok-soft);}
+  tr.done-row td.lt-task::before{content:"✓ "; color:var(--ok); font-weight:700;}
   .export-row{display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px;}
   .task-item:hover{outline:2px solid var(--line);}
   .task-item .t-date{font-family:var(--font-mono); font-size:0.66rem; color:var(--muted); display:block;}
@@ -141,12 +142,12 @@
   .agenda-day.today{border-color:var(--accent); box-shadow:0 0 0 1px var(--accent);}
   .agenda-day-h{font-family:var(--font-mono); font-size:.72rem; text-transform:uppercase; letter-spacing:.05em; background:var(--bg); padding:9px 12px; display:flex; justify-content:space-between; align-items:center;}
   .agenda-day.today .agenda-day-h{background:var(--accent-soft); color:var(--accent); font-weight:600;}
-  .agenda-task{display:flex; gap:10px; align-items:center; padding:11px 12px; border-top:1px solid var(--line); font-size:.88rem; cursor:pointer;}
+  .agenda-task{display:flex; gap:10px; align-items:center; padding:11px 12px; border-top:1px solid var(--line); font-size:.88rem; cursor:pointer; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none;}
   .agenda-task:active{background:var(--bg);}
   .agenda-task .ctx-tag{font-size:.68rem; padding:3px 8px; border-radius:6px; flex:0 0 auto;}
   .agenda-task .agenda-name{flex:1; min-width:0;}
-  .agenda-task.done{opacity:.55; background:#EAF5EE;}
-  .agenda-task.done .agenda-name::before{content:"✓ "; color:var(--accent); font-weight:700;}
+  .agenda-task.done{opacity:.6; background:var(--ok-soft);}
+  .agenda-task.done .agenda-name::before{content:"✓ "; color:var(--ok); font-weight:700;}
   .agenda-empty{padding:9px 12px; color:var(--muted); font-size:.78rem; border-top:1px solid var(--line); font-family:var(--font-mono);}
 
   /* ---------- Ajustes para telas pequenas ---------- */
@@ -178,7 +179,7 @@
     table.list-table tbody{display:block;}
     table.list-table tbody tr{display:block; border:1px solid var(--line); border-radius:10px; margin-bottom:10px; padding:6px 0; background:var(--surface);}
     table.list-table tbody tr:hover td{background:transparent;}
-    tr.done-row{border-color:#CBE7D4;}
+    tr.done-row{border-color:#CFDCD2;}
     table.list-table td{display:block; border:none; padding:5px 14px;}
     table.list-table td::before{content:attr(data-label); display:block; font-family:var(--font-mono); font-size:.6rem; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin-bottom:1px;}
     table.list-table td.lt-date{white-space:normal;}
@@ -199,6 +200,13 @@
   .task-item[draggable="true"]{cursor:grab;}
   .drag-ghost{position:fixed; z-index:99; pointer-events:none; background:var(--surface); border:1px solid var(--accent); border-radius:8px; padding:8px 12px; font-size:0.85rem; box-shadow:0 6px 18px rgba(23,36,47,.25); max-width:70vw; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   .agenda-task.dragging{opacity:.35;}
+  .ctx-row{display:flex; align-items:center; gap:8px; padding:10px 0; border-bottom:1px solid var(--line); flex-wrap:wrap;}
+  .ctx-row:last-child{border-bottom:none;}
+  .ctx-row .cnt{font-family:var(--font-mono); font-size:.7rem; color:var(--muted);}
+  .ctx-row .sp{flex:1;}
+  button.sm{padding:6px 10px; font-size:.75rem;}
+  #ctxDialog{border:1px solid var(--line); border-radius:var(--radius); padding:22px; max-width:440px; width:92%;}
+  #ctxDialog h3{font-family:var(--font-display); font-weight:700; margin-bottom:10px;}
   @media (max-width:720px){
     .seg{flex:1 1 100%;}
     .seg-btn{flex:1; padding:11px;}
@@ -320,6 +328,7 @@
     <label>Contexto
       <select id="ctxFilter"><option value="">Todos</option></select>
     </label>
+    <button class="ghost" id="ctxManageBtn" title="Gerenciar contextos">✎</button>
     <span class="spacer"></span>
     <button id="printBtn">Gerar PDF (imprimir)</button>
   </div>
@@ -352,9 +361,18 @@
   <div class="field"><label for="fDet">Detalhamento</label><input id="fDet" type="text"></div>
   <div class="btns">
     <button class="primary" id="saveEdit">Salvar</button>
-    <button class="ghost" id="doneEdit" style="border-color:var(--accent); color:var(--accent)">Concluir ✓</button>
+    <button class="ghost" id="doneEdit" style="border-color:var(--ok); color:var(--ok)">Concluir ✓</button>
     <button class="ghost" id="cancelEdit">Cancelar</button>
     <button class="danger" id="deleteEdit">Excluir</button>
+  </div>
+</dialog>
+
+<!-- Modal gerenciar contextos -->
+<dialog id="ctxDialog">
+  <h3>Gerenciar contextos</h3>
+  <div id="ctxList"></div>
+  <div class="btns">
+    <button class="ghost" id="ctxClose">Fechar</button>
   </div>
 </dialog>
 
@@ -810,7 +828,7 @@ document.getElementById("confirmYes").addEventListener("click", ()=>{
 document.getElementById("confirmNo").addEventListener("click", hideConfirm);
 
 /* ================= Visões: semana / dia, filtro e grade ================= */
-const CTX_COLORS = ["#FFE58A","#B9E8C9","#D9CBF6","#BFE0F6","#F6C6D8","#FFD9B3","#C9E8E4","#E4E0C8"];
+const CTX_COLORS = ["#EAE0CE","#DCE4D8","#E4DEE9","#D9E2E8","#EADCD6","#EFE9D8","#DDE7E4","#E7E1D8"];
 function ctxColor(name){
   const names = [...new Set(tasks.map(t=>t.context||"Geral"))].sort((a,b)=>a.localeCompare(b,"pt-BR"));
   return CTX_COLORS[names.indexOf(name) % CTX_COLORS.length];
@@ -1025,6 +1043,10 @@ function wireTouchDrag(host, days, hasNoDate){
         if(navigator.vibrate) navigator.vibrate(30);
       }, 350);
     });
+    // durante o arraste ativo, impede a rolagem da página de roubar o gesto
+    el.addEventListener("touchmove", e=>{ if(active) e.preventDefault(); }, {passive:false});
+    // impede o menu nativo de seleção/cópia ao segurar
+    el.addEventListener("contextmenu", e=>e.preventDefault());
     el.addEventListener("pointermove", e=>{
       if(!active){
         if(Math.hypot(e.clientX-startX, e.clientY-startY)>12) clearTimeout(pressTimer); // era rolagem
@@ -1114,6 +1136,61 @@ dayDateInp.addEventListener("change", ()=>{
 });
 ctxFilterSel.addEventListener("change", render);
 document.getElementById("printBtn").addEventListener("click", ()=>window.print());
+
+/* ================= Gerenciar contextos ================= */
+const ctxDlg = document.getElementById("ctxDialog");
+document.getElementById("ctxManageBtn").addEventListener("click", ()=>{ buildCtxList(); ctxDlg.showModal(); });
+document.getElementById("ctxClose").addEventListener("click", ()=>ctxDlg.close());
+
+function buildCtxList(){
+  const host = document.getElementById("ctxList");
+  const counts = {};
+  tasks.forEach(t=>{ const c=t.context||"Geral"; counts[c]=(counts[c]||0)+1; });
+  const names = Object.keys(counts).sort((a,b)=>a.localeCompare(b,"pt-BR"));
+  if(names.length===0){
+    host.innerHTML = '<div class="empty-grid">Nenhum contexto ainda — os contextos nascem junto com as tarefas.</div>';
+    return;
+  }
+  host.innerHTML = names.map(n=>
+    '<div class="ctx-row" data-name="'+esc(n)+'">'+
+      '<span class="ctx-tag" style="background:'+ctxColor(n)+'; padding:3px 9px; border-radius:6px">'+esc(n)+'</span>'+
+      '<span class="cnt">'+counts[n]+' tarefa(s)</span>'+
+      '<span class="sp"></span>'+
+      '<button class="ghost sm rn">Renomear</button>'+
+      (n==="Geral" ? '' : '<button class="danger sm dl">Excluir</button>')+
+    '</div>').join("");
+  host.querySelectorAll(".ctx-row").forEach(row=>{
+    const name = row.dataset.name;
+    row.querySelector(".rn").addEventListener("click", ()=>startRenameCtx(row, name));
+    const dl = row.querySelector(".dl");
+    if(dl) dl.addEventListener("click", ()=>deleteCtx(name));
+  });
+}
+function startRenameCtx(row, name){
+  row.innerHTML =
+    '<input type="text" value="'+esc(name)+'" style="flex:1; min-width:120px; padding:8px 10px; border:1px solid var(--line); border-radius:8px; font-size:0.9rem; font-family:var(--font-body)">'+
+    '<button class="primary sm ok">Salvar</button>'+
+    '<button class="ghost sm cc">Cancelar</button>';
+  const inp = row.querySelector("input");
+  inp.focus(); inp.select();
+  row.querySelector(".ok").addEventListener("click", ()=>{
+    const nv = inp.value.trim();
+    if(!nv || nv===name){ buildCtxList(); return; }
+    tasks.forEach(t=>{ if((t.context||"Geral")===name) t.context = nv; });
+    if(ctxFilterSel.value===name) ctxFilterSel.value = "";
+    saveTasks(); render(); buildCtxList();
+    toast('Contexto renomeado para "'+nv+'"');
+  });
+  row.querySelector(".cc").addEventListener("click", buildCtxList);
+}
+function deleteCtx(name){
+  const n = tasks.filter(t=>(t.context||"Geral")===name).length;
+  if(!confirm('Excluir o contexto "'+name+'"?\n\nAs '+n+' tarefa(s) dele NÃO serão apagadas: serão movidas para "Geral".')) return;
+  tasks.forEach(t=>{ if((t.context||"Geral")===name) t.context = "Geral"; });
+  if(ctxFilterSel.value===name) ctxFilterSel.value = "";
+  saveTasks(); render(); buildCtxList();
+  toast('Contexto excluído — tarefas movidas para "Geral"');
+}
 
 /* ================= Exportação para planilha ================= */
 function exportRows(){
