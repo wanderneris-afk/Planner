@@ -263,6 +263,7 @@
       <span class="chip" id="chipDet">detalhe</span>
       <span class="chip" id="chipAction">ação: adicionar</span>
     </div>
+    <button class="ghost" id="cancelFlow" style="display:none; margin-top:12px">✕ Cancelar comando</button>
     <div class="confirm" id="confirmCard">
       <div class="action-label" id="confirmAction">Adicionar tarefa</div>
       <div class="task-line" id="confirmText"></div>
@@ -541,9 +542,14 @@ function startSession(){
   sessionActive = true;
   errorNote.classList.remove("show");
   micBtn.classList.add("recording");
-  stateLabel.textContent = "Ouvindo… pause à vontade. Toque no microfone ao terminar.";
-  try{ recog.start(); }catch(e){}
+  stateLabel.textContent = flowMode ? stateLabel.textContent : "Ouvindo… pause à vontade. Toque no microfone ao terminar.";
+  try{ recog.start(); }
+  catch(e){
+    try{ recog.stop(); }catch(_){/*noop*/}
+    setTimeout(()=>{ try{ recog.start(); }catch(_){/*noop*/} }, 250);
+  }
   resetGrace();
+  updateCancelBtn();
 }
 function finishSession(){
   clearTimeout(graceTimer);
@@ -554,7 +560,26 @@ function finishSession(){
   stateLabel.textContent = "Toque no microfone e fale";
   const text = buffer.trim();
   buffer = "";
+  updateCancelBtn();
   if(text) handleSpeech(text);
+}
+/* Aborta qualquer captura ou fluxo em andamento e limpa tudo */
+function abortFlow(){
+  clearTimeout(graceTimer);
+  sessionActive = false;
+  buffer = "";
+  try{ recog && recog.stop(); }catch(e){}
+  micBtn.classList.remove("recording");
+  hideConfirm();
+  transcriptEl.textContent = "O que você falar aparece aqui…";
+  transcriptEl.classList.add("empty");
+  setChips(null);
+  updateCancelBtn();
+  toast("Comando cancelado");
+}
+function updateCancelBtn(){
+  const b = document.getElementById("cancelFlow");
+  if(b) b.style.display = (sessionActive || flowMode || draft) ? "inline-block" : "none";
 }
 
 if(!SR){
@@ -605,7 +630,8 @@ if(!SR){
   };
   micBtn.addEventListener("click", ()=>{
     if(sessionActive){ finishSession(); }
-    else { hideConfirm(); startSession(); }
+    else if(flowMode){ startSession(); }         // continua respondendo a pergunta pendente
+    else { hideConfirm(); startSession(); }      // novo comando do zero
   });
 }
 
@@ -619,18 +645,22 @@ let flowMode = null;   // null | "awaitContext" | "awaitDate" | "awaitDetail"
 
 function speak(msg, then){
   stateLabel.textContent = msg;
+  let called = false;
+  const go = ()=>{ if(called) return; called = true; if(then) then(); };
   if(window.speechSynthesis){
     try{
       speechSynthesis.cancel();
       const u = new SpeechSynthesisUtterance(msg);
       u.lang = "pt-BR"; u.rate = 1.05;
-      u.onend = ()=>{ if(then) then(); };
-      u.onerror = ()=>{ if(then) then(); };
+      u.onend = go;
+      u.onerror = go;
       speechSynthesis.speak(u);
+      // Android às vezes não dispara onend: segue em frente mesmo assim
+      setTimeout(go, Math.max(1600, msg.length*90));
       return;
     }catch(e){}
   }
-  if(then) setTimeout(then, 400);
+  setTimeout(go, 400);
 }
 function listenAgain(){ setTimeout(startSession, 150); }
 function isSkip(s){ return /\b(pular|pula|sem contexto|sem data|sem detalhamento|sem detalhe|nenhum|nenhuma|nao sei)\b/.test(normalize(s)); }
@@ -710,16 +740,19 @@ function nextStep(){
   if(!draft) return;
   if(!draft.context && !draft.ctxAsked){
     draft.ctxAsked = true; flowMode = "awaitContext";
+    updateCancelBtn();
     speak("Qual o contexto?", listenAgain);
     return;
   }
   if(!draft.dateISO && !draft.dateAsked){
     draft.dateAsked = true; flowMode = "awaitDate";
+    updateCancelBtn();
     speak("Para qual data?", listenAgain);
     return;
   }
   if(!draft.detail && !draft.detAsked){
     draft.detAsked = true; flowMode = "awaitDetail";
+    updateCancelBtn();
     speak("Qual o detalhamento?", listenAgain);
     return;
   }
@@ -748,7 +781,9 @@ function hideConfirm(){
   pending=null; draft=null; flowMode=null;
   if(window.speechSynthesis){ try{ speechSynthesis.cancel(); }catch(e){} }
   stateLabel.textContent = "Toque no microfone e fale";
+  updateCancelBtn();
 }
+document.getElementById("cancelFlow").addEventListener("click", abortFlow);
 function showError(msg){ errorNote.textContent=msg; errorNote.classList.add("show"); }
 
 document.getElementById("confirmYes").addEventListener("click", ()=>{
