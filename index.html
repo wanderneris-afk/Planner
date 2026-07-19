@@ -113,7 +113,7 @@
   .task-item.done::before{content:"✓ "; color:var(--ok); font-weight:700;}
 
   /* Lista detalhada */
-  table.list-table{border-collapse:collapse; width:100%; min-width:560px;}
+  table.list-table{border-collapse:collapse; width:100%; min-width:640px;}
   table.list-table th, table.list-table td{border:1px solid var(--line); padding:8px; font-size:0.82rem; vertical-align:top; text-align:left;}
   table.list-table thead th{font-family:var(--font-mono); font-size:0.7rem; font-weight:600; text-transform:uppercase; letter-spacing:.05em; background:var(--bg);}
   table.list-table tbody tr{cursor:pointer;}
@@ -180,7 +180,7 @@
     table.week-grid{display:none;}
     .agenda{display:block;}
     /* lista detalhada: tabela compacta com rolagem lateral */
-    table.list-table{min-width:520px; font-size:.74rem;}
+    table.list-table{min-width:600px; font-size:.72rem;}
     table.list-table th, table.list-table td{padding:6px 6px;}
     table.list-table td::before{content:none;}
     dialog#editDialog{padding:18px 16px;}
@@ -200,6 +200,8 @@
   .task-item[draggable="true"]{cursor:grab;}
   .drag-ghost{position:fixed; z-index:99; pointer-events:none; background:var(--surface); border:1px solid var(--accent); border-radius:8px; padding:8px 12px; font-size:0.85rem; box-shadow:0 6px 18px rgba(23,36,47,.25); max-width:70vw; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   .agenda-task.dragging{opacity:.35;}
+  .rec-mark{color:var(--accent); font-weight:700;}
+  .lt-id{font-family:var(--font-mono); font-size:.65rem; color:var(--muted); white-space:nowrap;}
   .ctx-row{display:flex; align-items:center; gap:8px; padding:10px 0; border-bottom:1px solid var(--line); flex-wrap:wrap;}
   .ctx-row:last-child{border-bottom:none;}
   .ctx-row .cnt{font-family:var(--font-mono); font-size:.7rem; color:var(--muted);}
@@ -1031,7 +1033,7 @@ function render(){
         .sort((a,b)=>(a.date||"9999").localeCompare(b.date||"9999"));
       html += '<td class="droppable" data-col="'+c+'" data-ctx="'+esc(ctx)+'">';
       cell.forEach(t=>{
-        html += '<div class="task-item'+(t.done?' done':'')+'" draggable="true" data-id="'+t.id+'" style="border-left-color:'+color+'">'+esc(t.text)+'</div>';
+        html += '<div class="task-item'+(t.done?' done':'')+'" draggable="true" data-id="'+t.id+'" style="border-left-color:'+color+'">'+(t.rid?'<span class="rec-mark" title="Recorrente">↻</span> ':'')+esc(t.text)+'</div>';
       });
       html += '</td>';
     }
@@ -1061,7 +1063,7 @@ function render(){
       dayTasks.forEach(t=>{
         html += '<div class="agenda-task'+(t.done?' done':'')+'" data-id="'+t.id+'">'+
                 '<span class="ctx-tag" style="background:'+ctxColor(t.context||"Geral")+'">'+esc(t.context||"Geral")+'</span>'+
-                '<span class="agenda-name">'+esc(t.text)+'</span></div>';
+                '<span class="agenda-name">'+(t.rid?'<span class="rec-mark" title="Recorrente">↻</span> ':'')+esc(t.text)+'</span></div>';
       });
     }
     html += '</div>';
@@ -1220,15 +1222,17 @@ function renderList(visible, days){
     listHost.innerHTML = '<div class="empty-grid">Nenhuma tarefa neste recorte.</div>';
     return;
   }
-  let lh = '<table class="list-table"><thead><tr><th>Data</th><th>Dia</th><th>Contexto</th><th>Tarefa</th><th>Detalhamento</th></tr></thead><tbody>';
+  let lh = '<table class="list-table"><thead><tr><th>Data</th><th>Dia</th><th>Contexto</th><th title="Recorrente">↻</th><th>Tarefa</th><th>Detalhamento</th><th>ID</th></tr></thead><tbody>';
   listTasks.forEach(t=>{
     const color = ctxColor(t.context||"Geral");
     lh += '<tr class="'+(t.done?'done-row':'')+'" data-id="'+t.id+'">'+
           '<td class="lt-date" data-label="Data">'+fmtDDMMAA(t.date)+'</td>'+
           '<td class="lt-date" data-label="Dia">'+abbrOf(t.date)+'</td>'+
           '<td data-label="Contexto"><span class="ctx-tag" style="background:'+color+'; padding:2px 8px; border-radius:6px">'+esc(t.context||"Geral")+'</span></td>'+
+          '<td data-label="Recorrente" style="text-align:center">'+(t.rid?'<span class="rec-mark" title="Série '+esc(t.rid)+'">↻</span>':'')+'</td>'+
           '<td class="lt-task" data-label="Tarefa">'+esc(t.text)+'</td>'+
-          '<td data-label="Detalhamento">'+esc(t.detail||"—")+'</td></tr>';
+          '<td data-label="Detalhamento">'+esc(t.detail||"—")+'</td>'+
+          '<td class="lt-id" data-label="ID">'+esc(t.id)+'</td></tr>';
   });
   lh += '</tbody></table>';
   listHost.innerHTML = lh;
@@ -1335,10 +1339,10 @@ function getExportSet(){
 }
 function exportRows(list){
   return list.map(t=>[
-    fmtBR(t.date), abbrOf(t.date)==="—"?"":abbrOf(t.date), t.context||"Geral", t.text, t.detail||"", t.done ? "Concluída" : "Pendente"
+    fmtBR(t.date), abbrOf(t.date)==="—"?"":abbrOf(t.date), t.context||"Geral", t.text, t.detail||"", t.done ? "Concluída" : "Pendente", t.rid ? "Sim" : "", t.id
   ]);
 }
-const EXPORT_HEADER = ["Data","Dia","Contexto","Tarefa","Detalhamento","Status"];
+const EXPORT_HEADER = ["Data","Dia","Contexto","Tarefa","Detalhamento","Status","Recorrente","ID"];
 
 document.getElementById("exportCsvBtn").addEventListener("click", ()=>{
   const set = getExportSet();
