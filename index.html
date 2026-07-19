@@ -175,16 +175,10 @@
     /* grade em tabela some; agenda entra */
     table.week-grid{display:none;}
     .agenda{display:block;}
-    /* lista detalhada vira cartões empilhados */
-    table.list-table{min-width:0; display:block; border:none; width:100%;}
-    table.list-table thead{display:none;}
-    table.list-table tbody{display:block;}
-    table.list-table tbody tr{display:block; border:1px solid var(--line); border-radius:10px; margin-bottom:10px; padding:6px 0; background:var(--surface);}
-    table.list-table tbody tr:hover td{background:transparent;}
-    tr.done-row{border-color:#CFDCD2;}
-    table.list-table td{display:block; border:none; padding:5px 14px;}
-    table.list-table td::before{content:attr(data-label); display:block; font-family:var(--font-mono); font-size:.6rem; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin-bottom:1px;}
-    table.list-table td.lt-date{white-space:normal;}
+    /* lista detalhada: tabela compacta com rolagem lateral */
+    table.list-table{min-width:520px; font-size:.74rem;}
+    table.list-table th, table.list-table td{padding:6px 6px;}
+    table.list-table td::before{content:none;}
     dialog#editDialog{padding:18px 16px;}
     dialog .btns button{flex:1 1 45%;}
   }
@@ -346,8 +340,23 @@
 
   <!-- Lista detalhada -->
   <section class="grid-card" id="listCard" style="margin-top:24px">
-    <div class="grid-title">Tarefas da semana em detalhe</div>
+    <div class="grid-title">Tarefas em detalhe</div>
     <div class="grid-sub" id="listSub"></div>
+    <div class="export-row">
+      <label class="exp-scope">Mostrar:
+        <select id="listScope">
+          <option value="periodo" selected>Período exibido</option>
+          <option value="mes">Por mês</option>
+          <option value="ano">Ano inteiro</option>
+        </select>
+      </label>
+      <label class="exp-scope" id="listMonthPick" style="display:none">Mês
+        <input type="month" id="listMonth">
+      </label>
+      <label class="exp-scope" id="listYearPick" style="display:none">Ano
+        <input type="number" id="listYear" min="2000" max="2100" inputmode="numeric" style="width:80px">
+      </label>
+    </div>
     <div class="export-row">
       <label class="exp-scope">Exportar:
         <select id="exportScope">
@@ -1100,22 +1109,53 @@ function wireTouchDrag(host, days, hasNoDate){
 /* ================= Lista detalhada ================= */
 let exportTasksArr = [];
 let exportLabel = "periodo";
+const listScopeSel = document.getElementById("listScope");
+const listMonthInp = document.getElementById("listMonth");
+const listYearInp = document.getElementById("listYear");
+listMonthInp.value = toISO(new Date()).slice(0,7);
+listYearInp.value = new Date().getFullYear();
+
 function renderList(visible, days){
   const listHost = document.getElementById("listHost");
-  const listTasks = visible.slice().sort((a,b)=>{
+  const scope = listScopeSel.value;
+  document.getElementById("listMonthPick").style.display = scope==="mes" ? "" : "none";
+  document.getElementById("listYearPick").style.display = scope==="ano" ? "" : "none";
+
+  const filter = ctxFilterSel.value;
+  const matches = t=> !filter || (t.context||"Geral")===filter;
+
+  let listTasks, subPrefix;
+  if(scope==="mes"){
+    const m = listMonthInp.value || toISO(new Date()).slice(0,7);
+    listTasks = tasks.filter(t=>t.date && t.date.slice(0,7)===m && matches(t));
+    exportLabel = "mes-"+m;
+    subPrefix = "Mês "+m.split("-")[1]+"/"+m.split("-")[0];
+  }else if(scope==="ano"){
+    const y = String(parseInt(listYearInp.value,10) || new Date().getFullYear());
+    listTasks = tasks.filter(t=>t.date && t.date.slice(0,4)===y && matches(t));
+    exportLabel = "ano-"+y;
+    subPrefix = "Ano "+y;
+  }else{
+    listTasks = visible.slice();
+    exportLabel = viewMode==="week"
+      ? "semana-"+weekOfYear(currentSunday)+"-"+currentSunday.getFullYear()
+      : "dia-"+currentDay;
+    subPrefix = null;
+  }
+  listTasks.sort((a,b)=>{
     const d=(a.date||"9999").localeCompare(b.date||"9999");
     return d!==0 ? d : (a.context||"Geral").localeCompare(b.context||"Geral","pt-BR");
   });
   exportTasksArr = listTasks;
-  exportLabel = viewMode==="week"
-    ? "semana-"+weekOfYear(currentSunday)+"-"+currentSunday.getFullYear()
-    : "dia-"+currentDay;
   const doneCount = listTasks.filter(t=>t.done).length;
   document.getElementById("listSub").textContent =
-    listTasks.length+" tarefa(s) no período · "+doneCount+" concluída(s)";
+    (subPrefix ? subPrefix+" · " : "")+
+    listTasks.length+" tarefa(s) · "+doneCount+" concluída(s)"+
+    (filter ? ' · contexto: '+filter : '')+
+    ((scope==="mes"||scope==="ano") ? " · somente tarefas com data" : "");
 
   if(listTasks.length===0){
-    listHost.innerHTML = '<div class="empty-grid">Nenhuma tarefa neste período.</div>';
+    listHost.innerHTML = '<div class="empty-grid">Nenhuma tarefa neste recorte.</div>';
     return;
   }
   let lh = '<table class="list-table"><thead><tr><th>Data</th><th>Dia</th><th>Contexto</th><th>Tarefa</th><th>Detalhamento</th></tr></thead><tbody>';
@@ -1134,6 +1174,9 @@ function renderList(visible, days){
     el.addEventListener("click", ()=>openEdit(el.dataset.id));
   });
 }
+listScopeSel.addEventListener("change", render);
+listMonthInp.addEventListener("change", render);
+listYearInp.addEventListener("change", render);
 
 function esc(s){ return String(s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c])); }
 
