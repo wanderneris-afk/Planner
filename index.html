@@ -361,15 +361,32 @@
       <label class="exp-scope">Mostrar:
         <select id="listScope">
           <option value="periodo" selected>Período exibido</option>
-          <option value="mes">Por mês</option>
-          <option value="ano">Ano inteiro</option>
+          <option value="dia">Dia</option>
+          <option value="semana">Semana</option>
+          <option value="mes">Mês</option>
+          <option value="ano">Ano</option>
+          <option value="todas">Toda a base</option>
         </select>
+      </label>
+      <label class="exp-scope" id="listDayPick" style="display:none">Dia
+        <input type="date" id="listDay">
+      </label>
+      <label class="exp-scope" id="listWeekPick" style="display:none">Semana nº
+        <input type="number" id="listWeek" min="1" max="53" inputmode="numeric" style="width:64px; text-align:center">
       </label>
       <label class="exp-scope" id="listMonthPick" style="display:none">Mês
         <input type="month" id="listMonth">
       </label>
       <label class="exp-scope" id="listYearPick" style="display:none">Ano
         <input type="number" id="listYear" min="2000" max="2100" inputmode="numeric" style="width:80px">
+      </label>
+    </div>
+    <div class="export-row">
+      <label class="exp-scope" style="flex:1; min-width:180px">🔎 Pesquisar tarefa
+        <input type="search" id="listSearchTask" placeholder="Digite parte do nome…" style="flex:1; width:100%; padding:8px 10px; border:1px solid var(--line); border-radius:8px; font-family:var(--font-body); font-size:0.9rem">
+      </label>
+      <label class="exp-scope" style="flex:1; min-width:180px">🔎 Pesquisar detalhamento
+        <input type="search" id="listSearchDet" placeholder="Digite parte do detalhamento…" style="flex:1; width:100%; padding:8px 10px; border:1px solid var(--line); border-radius:8px; font-family:var(--font-body); font-size:0.9rem">
       </label>
     </div>
     <div class="export-row">
@@ -1176,20 +1193,46 @@ let exportLabel = "periodo";
 const listScopeSel = document.getElementById("listScope");
 const listMonthInp = document.getElementById("listMonth");
 const listYearInp = document.getElementById("listYear");
+const listDayInp = document.getElementById("listDay");
+const listWeekInp = document.getElementById("listWeek");
+const listSearchTask = document.getElementById("listSearchTask");
+const listSearchDet = document.getElementById("listSearchDet");
 listMonthInp.value = toISO(new Date()).slice(0,7);
 listYearInp.value = new Date().getFullYear();
+listDayInp.value = toISO(new Date());
+listWeekInp.value = weekOfYear(sundayOf(new Date()));
 
 function renderList(visible, days){
   const listHost = document.getElementById("listHost");
   const scope = listScopeSel.value;
+  document.getElementById("listDayPick").style.display = scope==="dia" ? "" : "none";
+  document.getElementById("listWeekPick").style.display = scope==="semana" ? "" : "none";
   document.getElementById("listMonthPick").style.display = scope==="mes" ? "" : "none";
-  document.getElementById("listYearPick").style.display = scope==="ano" ? "" : "none";
+  document.getElementById("listYearPick").style.display = (scope==="ano"||scope==="semana") ? "" : "none";
 
   const filter = ctxFilterSel.value;
   const matches = t=> !filter || (t.context||"Geral")===filter;
 
   let listTasks, subPrefix;
-  if(scope==="mes"){
+  if(scope==="dia"){
+    const di = listDayInp.value || toISO(new Date());
+    listTasks = tasks.filter(t=>t.date===di && matches(t));
+    exportLabel = "dia-"+di;
+    subPrefix = "Dia "+fmtBR(di)+" ("+abbrOf(di)+")";
+  }else if(scope==="semana"){
+    let wn = parseInt(listWeekInp.value,10); if(isNaN(wn)) wn = weekOfYear(sundayOf(new Date())); wn = Math.min(53, Math.max(1, wn));
+    const wy = parseInt(listYearInp.value,10) || new Date().getFullYear();
+    const ws = sundayFromWeek(wy, wn);
+    const we = new Date(ws); we.setDate(we.getDate()+6);
+    const a = toISO(ws), b = toISO(we);
+    listTasks = tasks.filter(t=>t.date && t.date>=a && t.date<=b && matches(t));
+    exportLabel = "semana-"+wn+"-"+wy;
+    subPrefix = "Semana "+wn+"/"+wy+" ("+fmtShort(ws)+" – "+fmtShort(we)+")";
+  }else if(scope==="todas"){
+    listTasks = tasks.filter(matches);
+    exportLabel = "toda-a-base";
+    subPrefix = "Toda a base";
+  }else if(scope==="mes"){
     const m = listMonthInp.value || toISO(new Date()).slice(0,7);
     listTasks = tasks.filter(t=>t.date && t.date.slice(0,7)===m && matches(t));
     exportLabel = "mes-"+m;
@@ -1206,6 +1249,10 @@ function renderList(visible, days){
       : "dia-"+currentDay;
     subPrefix = null;
   }
+  const qT = normalize(listSearchTask.value||"");
+  const qD = normalize(listSearchDet.value||"");
+  if(qT) listTasks = listTasks.filter(t=>normalize(t.text).includes(qT));
+  if(qD) listTasks = listTasks.filter(t=>normalize(t.detail||"").includes(qD));
   listTasks.sort((a,b)=>{
     const d=(a.date||"9999").localeCompare(b.date||"9999");
     return d!==0 ? d : (a.context||"Geral").localeCompare(b.context||"Geral","pt-BR");
@@ -1216,7 +1263,8 @@ function renderList(visible, days){
     (subPrefix ? subPrefix+" · " : "")+
     listTasks.length+" tarefa(s) · "+doneCount+" concluída(s)"+
     (filter ? ' · contexto: '+filter : '')+
-    ((scope==="mes"||scope==="ano") ? " · somente tarefas com data" : "");
+    ((scope==="mes"||scope==="ano"||scope==="semana"||scope==="dia") ? " · somente tarefas com data" : "")+
+    ((qT||qD) ? " · pesquisa ativa" : "");
 
   if(listTasks.length===0){
     listHost.innerHTML = '<div class="empty-grid">Nenhuma tarefa neste recorte.</div>';
@@ -1243,6 +1291,10 @@ function renderList(visible, days){
 listScopeSel.addEventListener("change", render);
 listMonthInp.addEventListener("change", render);
 listYearInp.addEventListener("change", render);
+listDayInp.addEventListener("change", render);
+listWeekInp.addEventListener("change", render);
+listSearchTask.addEventListener("input", render);
+listSearchDet.addEventListener("input", render);
 
 function esc(s){ return String(s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c])); }
 
